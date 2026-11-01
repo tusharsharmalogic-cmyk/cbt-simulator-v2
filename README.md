@@ -14,7 +14,7 @@ Open http://127.0.0.1:8080 on phone browser.
 
 - [x] Step 1 — Flask scaffold, test loader, preview UI
 - [x] Step 2 — Exam Template Builder + Settings (theme)
-- [ ] Step 3 — Test validator + Setup screen
+- [x] Step 3 — Test validator + Setup screen
 - [ ] Step 4 — Test screen (UI)
 - [ ] Step 5 — Server-side attempts + timer + submit
 - [ ] Step 6 — Scoring + Result
