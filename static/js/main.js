@@ -1,5 +1,5 @@
 // Entry + hash router.
-// Routes: #/home, #/templates/new, #/templates/<id>, #/preview/<test_id>
+// Routes: #/home, #/templates/new, #/templates/<id>, #/preview/<test_id>, #/setup
 
 const app = document.getElementById('app');
 const backBtn = document.getElementById('back');
@@ -71,6 +71,16 @@ async function showHome() {
   newBtn.type = 'button';
   newBtn.addEventListener('click', () => { location.hash = '#/templates/new'; });
   wrap.append(newBtn);
+
+  // Test shuru karo — kam se kam 1 template + 1 good test chahiye
+  const hasTemplate = templates.some(t => !t.error);
+  const hasTest = tests.some(t => !t.error);
+  if (hasTemplate && hasTest) {
+    const startBtn = el('button', 'btn wide', 'Start test \u2192');
+    startBtn.type = 'button';
+    startBtn.addEventListener('click', () => { location.hash = '#/setup'; });
+    wrap.append(startBtn);
+  }
 
   // Tests (existing preview list — step 3 me setup screen aayegi)
   wrap.append(el('h2', 'section-title', 'Tests'));
@@ -175,6 +185,59 @@ async function showBuilder(id) {
   typeset(app);
 }
 
+// ---------- Setup (Step 3) ----------
+async function showSetup() {
+  state.screen = 'setup';
+  show('Test shuru karo', el('p', 'muted', 'Load ho raha hai...'));
+  let templates = [], tests = [];
+  try { templates = await api.templates(); } catch (e) { templates = []; }
+  try { tests = await api.tests(); } catch (e) { tests = []; }
+  const s = setup.initialState(templates, tests);
+  // Default test = pehla good test
+  const firstGood = tests.find(t => !t.error);
+  if (firstGood) s.testId = firstGood.id;
+
+  const rerender = () => {
+    app.replaceChildren(setup.render(s, {
+      onTemplateChange: (id) => { s.templateId = id; s.validation = null; rerender(); },
+      onTestChange: (id) => { s.testId = id; s.validation = null; rerender(); },
+      onValidate: validate,
+      onStart: start,
+    }));
+    typeset(app);
+  };
+
+  async function validate() {
+    s.validating = true;
+    s.validateError = null;
+    s.validation = null;
+    rerender();
+    try {
+      const url = `/api/tests/${encodeURIComponent(s.testId)}/validate?template=${encodeURIComponent(s.templateId)}`;
+      s.validation = await api.get(url);
+    } catch (e) {
+      s.validateError = e.message;
+    } finally {
+      s.validating = false;
+      rerender();
+    }
+  }
+
+  function start() {
+    // Step 3: sirf state.attempt banao, Step 4 screen pe jao (in-memory)
+    // Step 5 me yeh api POST /api/attempts hoga.
+    alert('Step 4/5 me real start aayega. Filhaal validation pass ho gaya.');
+  }
+
+  show('Test shuru karo', setup.render(s, {
+    onTemplateChange: (id) => { s.templateId = id; s.validation = null; rerender(); },
+    onTestChange: (id) => { s.testId = id; s.validation = null; rerender(); },
+    onValidate: validate,
+    onStart: start,
+  }));
+  typeset(app);
+}
+
 // ---------- Preview (Step 1 kept) ----------
 async function showPreview(id) {
   state.screen = 'preview';
@@ -199,6 +262,7 @@ async function route() {
   const parts = hash.replace(/^#\//, '').split('/');
   if (parts[0] === 'templates' && parts[1]) return showBuilder(parts[1]);
   if (parts[0] === 'preview' && parts[1]) return showPreview(parts[1]);
+  if (parts[0] === 'setup') return showSetup();
   return showHome();
 }
 

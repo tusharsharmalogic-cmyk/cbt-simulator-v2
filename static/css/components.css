@@ -130,3 +130,16 @@
   background: var(--primary); color: var(--primary-text);
   font-size: 14px; z-index: 100;
 }
+
+/* ---------- Setup screen ---------- */
+.warn-box {
+  border-color: #f9a825;
+  background: rgba(249, 168, 37, 0.08);
+}
+.warn-title, .err-title { font-weight: 600; margin-bottom: 6px; }
+.warn-title { color: #b26a00; }
+.err-title { color: #c62828; }
+.warn-row, .err-row { font-size: 13px; padding: 2px 0; line-height: 1.4; }
+.err-row { color: #c62828; }
+.ok-box { color: #2e7d32; border-color: #2e7d32; background: rgba(46, 125, 50, 0.06); }
+.center { text-align: center; }

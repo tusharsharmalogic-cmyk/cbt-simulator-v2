@@ -1,10 +1,11 @@
-"""Tests (data/tests/*.json) padhna.
+"""Tests (data/tests/*.json) padhna + validate karna.
 
-Step 1: sirf list + load. Validator (count mismatch, bina answer wala question,
-kharab SVG) step 3 me aayega.
+Step 3: validate_test(test, template) -> {errors, warnings}.
+Errors = test start block karte hain, warnings = allowed but helpful.
 """
 import json
 import re
+import xml.etree.ElementTree as ET
 
 import config
 
@@ -19,7 +20,8 @@ def _path_for(test_id):
 
 
 def load_test(test_id):
-    """Pura test dict return karta hai, ya None agar nahi mila."""
+    """Pura test dict return karta hai, ya None agar nahi mila.
+    Kharab JSON pe json.JSONDecodeError raise hota hai (caller decide kare)."""
     p = _path_for(test_id)
     if p is None or not p.is_file():
         return None
@@ -27,16 +29,159 @@ def load_test(test_id):
         return json.load(f)
 
 
+def load_test_safe(test_id):
+    """(test_or_None, error_msg_or_None). Human-friendly error, JSONDecodeError
+    ki line/col bhi dikhta hai."""
+    p = _path_for(test_id)
+    if p is None:
+        return None, "Invalid test id"
+    if not p.is_file():
+        return None, "Test nahi mila"
+    try:
+        with open(p, encoding="utf-8") as f:
+            return json.load(f), None
+    except json.JSONDecodeError as e:
+        return None, f"JSON kharab hai: line {e.lineno}, col {e.colno}: {e.msg}"
+    except OSError as e:
+        return None, f"File padh nahi paye: {e}"
+
+
 def list_tests():
-    """Har test ka chhota summary: id, name, subject-wise question count."""
+    """Har test ka chhota summary: id, name, subject-wise question count.
+    Kharab file poori list na tode — us entry me 'error' key aata hai."""
     out = []
     for p in sorted(config.TESTS_DIR.glob("*.json")):
+        if p.name.startswith(".tmp_"):
+            continue
         try:
             with open(p, encoding="utf-8") as f:
                 t = json.load(f)
             subjects = {name: len(qs) for name, qs in t.get("subjects", {}).items()}
             out.append({"id": p.stem, "name": t.get("name", p.stem), "subjects": subjects})
-        except (json.JSONDecodeError, OSError, AttributeError) as e:
-            # Kharab file poori list na tode; error dikha do (step 3 me detailed hoga)
-            out.append({"id": p.stem, "name": p.stem, "error": f"File padh nahi paye: {e}"})
+        except json.JSONDecodeError as e:
+            out.append({"id": p.stem, "name": p.stem,
+                        "error": f"JSON kharab: line {e.lineno} col {e.colno}"})
+        except (OSError, AttributeError, TypeError) as e:
+            out.append({"id": p.stem, "name": p.stem,
+                        "error": f"File padh nahi paye: {e}"})
     return out
+
+
+# ---------- validation ----------
+
+def validate_test(test, template=None):
+    """Test ko template ke hisaab se check karo.
+
+    template=None -> saare questions check karo.
+    template diya -> sirf first N questions per subject check (jo use honge).
+    Returns: {"errors": [str], "warnings": [str]}
+    """
+    errors, warnings = [], []
+
+    if not isinstance(test, dict):
+        return {"errors": ["Test ek JSON object hona chahiye"], "warnings": []}
+
+    tsubs = test.get("subjects")
+    if not isinstance(tsubs, dict) or not tsubs:
+        return {"errors": ["subjects field missing ya khali hai"], "warnings": []}
+
+    tmpl_subjs = {}
+    if template is not None:
+        for s in template.get("subjects", []):
+            name = s.get("name", "")
+            if name:
+                tmpl_subjs[name] = s
+
+    # template me jo subject hai par test me nahi -> error
+    if template is not None:
+        for name in tmpl_subjs:
+            if name not in tsubs:
+                errors.append(f"'{name}' subject test me missing hai (template ko chahiye)")
+
+    # test me jo extra subject hai -> warning
+    if template is not None:
+        for name in tsubs:
+            if name not in tmpl_subjs:
+                warnings.append(f"'{name}' subject test me hai par template me nahi (ignore hoga)")
+
+    # per-subject
+    for subj_name, qs in tsubs.items():
+        if not isinstance(qs, list):
+            errors.append(f"{subj_name}: questions ek list honi chahiye")
+            continue
+
+        if template is not None and subj_name in tmpl_subjs:
+            needed = tmpl_subjs[subj_name].get("questions", 0)
+            if len(qs) < needed:
+                errors.append(f"{subj_name}: test me {len(qs)} questions hain, template ko {needed} chahiye")
+                to_check = qs
+            elif len(qs) > needed:
+                warnings.append(f"{subj_name}: test me {len(qs)} questions hain, template sirf {needed} lega (extra ignore)")
+                to_check = qs[:needed]
+            else:
+                to_check = qs
+        else:
+            to_check = qs
+
+        for i, q in enumerate(to_check, start=1):
+            prefix = f"{subj_name} Q{i}"
+            if not isinstance(q, dict):
+                errors.append(f"{prefix}: question object nahi hai")
+                continue
+            _validate_question(q, prefix, errors, warnings)
+
+    return {"errors": errors, "warnings": warnings}
+
+
+def _validate_question(q, prefix, errors, warnings):
+    # q text
+    if not isinstance(q.get("q"), str) or not q["q"].strip():
+        errors.append(f"{prefix}: question text khali hai")
+
+    # options
+    opts = q.get("options")
+    if not isinstance(opts, list):
+        errors.append(f"{prefix}: options list nahi hai")
+    else:
+        if len(opts) < 2 or len(opts) > 6:
+            errors.append(f"{prefix}: options 2 se 6 ke beech hone chahiye (mila: {len(opts)})")
+        for i, o in enumerate(opts):
+            if not isinstance(o, str):
+                errors.append(f"{prefix}: option {chr(65 + i)} string nahi hai")
+
+    # answer
+    answer = q.get("answer")
+    if not isinstance(answer, str) or len(answer) != 1:
+        errors.append(f"{prefix}: answer missing ya single letter nahi")
+    else:
+        a = answer.upper()
+        if not ("A" <= a <= "Z"):
+            errors.append(f"{prefix}: answer '{answer}' valid letter nahi")
+        elif isinstance(opts, list) and (ord(a) - ord("A")) >= len(opts):
+            errors.append(f"{prefix}: answer '{a}' option se bahar hai (options {len(opts)})")
+
+    # svg (agar diya hai to valid hona chahiye)
+    svg = q.get("svg")
+    if svg is not None and svg != "":
+        err = _check_svg(svg)
+        if err:
+            errors.append(f"{prefix}: SVG kharab — {err}")
+
+    # solution warning
+    if not q.get("solution"):
+        warnings.append(f"{prefix}: solution missing (allowed but helpful)")
+
+
+def _check_svg(svg):
+    if not isinstance(svg, str) or not svg.strip():
+        return "khali string"
+    try:
+        root = ET.fromstring(svg)
+    except ET.ParseError as e:
+        return f"parse fail ({e})"
+    tag = root.tag.split("}")[-1].lower()
+    if tag != "svg":
+        return f"root element <svg> nahi hai (mila <{tag}>)"
+    if not root.attrib.get("viewBox"):
+        return "viewBox missing (mobile scaling ke liye zaroori)"
+    return None
