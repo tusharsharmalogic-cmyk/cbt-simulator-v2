@@ -1,0 +1,36 @@
+{
+  "name": "Sample Test",
+  "subjects": {
+    "Physics": [
+      {
+        "q": "Ek block $m = 2\\,\\text{kg}$ ek smooth inclined plane ($\\theta = 30^\\circ$) par rakha hai. Plane ke along acceleration kitni hogi? ($g = 10\\,\\text{m/s}^2$)",
+        "svg": "<svg viewBox='0 0 240 130' xmlns='http://www.w3.org/2000/svg'><polygon points='20,110 220,110 220,30' fill='none' stroke='currentColor' stroke-width='2'/><rect x='110' y='56' width='26' height='18' fill='none' stroke='currentColor' stroke-width='2' transform='rotate(-27 123 65)'/><path d='M190 110 A30 30 0 0 0 186 95' fill='none' stroke='currentColor'/><text x='162' y='104' font-size='12' fill='currentColor'>30°</text></svg>",
+        "options": ["$5\\,\\text{m/s}^2$", "$10\\,\\text{m/s}^2$", "$5\\sqrt{3}\\,\\text{m/s}^2$", "$2.5\\,\\text{m/s}^2$"],
+        "answer": "A",
+        "solution": "$a = g\\sin\\theta = 10 \\times \\frac{1}{2} = 5\\,\\text{m/s}^2$"
+      },
+      {
+        "q": "Ek particle ki position $x = 3t^2 + 2t$ hai. $t = 2$ s par velocity kya hogi?",
+        "options": ["$12$ m/s", "$14$ m/s", "$16$ m/s", "$8$ m/s"],
+        "answer": "B",
+        "solution": "$v = \\frac{dx}{dt} = 6t + 2 = 14$ m/s"
+      }
+    ],
+    "Chemistry": [
+      {
+        "q": "$0.1\\,\\text{M}$ $\\text{HCl}$ solution ka pH kitna hoga?",
+        "options": ["$0$", "$1$", "$2$", "$13$"],
+        "answer": "B",
+        "solution": "$\\text{pH} = -\\log[H^+] = -\\log(0.1) = 1$"
+      }
+    ],
+    "Maths": [
+      {
+        "q": "Evaluate: $$\\int_0^1 x^2\\,dx$$",
+        "options": ["$\\frac{1}{2}$", "$\\frac{1}{3}$", "$\\frac{1}{4}$", "$1$"],
+        "answer": "B",
+        "solution": "$\\left[\\frac{x^3}{3}\\right]_0^1 = \\frac{1}{3}$"
+      }
+    ]
+  }
+}
