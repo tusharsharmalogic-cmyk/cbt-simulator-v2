@@ -21,6 +21,25 @@
     --primary-text: #10121a;
   }
 }
+/* Explicit user overrides (settings.json). data-theme set hone par ye jeetta hai. */
+[data-theme="light"] {
+  --bg: #f4f5f9;
+  --surface: #ffffff;
+  --text: #1c2030;
+  --muted: #667085;
+  --border: #dde1ea;
+  --primary: #3f51b5;
+  --primary-text: #ffffff;
+}
+[data-theme="dark"] {
+  --bg: #14161d;
+  --surface: #1e212b;
+  --text: #e8eaf2;
+  --muted: #98a0b3;
+  --border: #2e3342;
+  --primary: #7c8cf0;
+  --primary-text: #10121a;
+}
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }

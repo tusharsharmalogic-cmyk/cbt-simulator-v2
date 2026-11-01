@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
   <title>CBT Simulator</title>
   <link rel="stylesheet" href="/static/css/base.css">
   <link rel="stylesheet" href="/static/css/layout.css">
@@ -12,8 +13,9 @@
 </head>
 <body>
   <header class="topbar">
-    <h1 id="title">CBT Simulator</h1>
     <button id="back" class="btn ghost" hidden>&larr; Back</button>
+    <h1 id="title">CBT Simulator</h1>
+    <button id="theme-toggle" class="btn ghost theme-btn" title="Theme">◐</button>
   </header>
 
   <main id="app" class="screen"></main>
@@ -22,6 +24,7 @@
   <script src="/static/js/state.js"></script>
   <script src="/static/js/svg.js"></script>
   <script src="/static/js/question.js"></script>
+  <script src="/static/js/builder.js"></script>
   <script src="/static/js/main.js"></script>
 </body>
 </html>

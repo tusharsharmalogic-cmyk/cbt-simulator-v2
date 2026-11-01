@@ -10,6 +10,8 @@ import argparse
 from flask import Flask, jsonify, render_template
 
 import config
+from core.routes_settings import bp as settings_bp
+from core.routes_templates import bp as templates_bp
 from core.routes_tests import bp as tests_bp
 
 
@@ -20,6 +22,8 @@ def create_app():
     app.json.ensure_ascii = False   # Hindi/unicode as-is
 
     app.register_blueprint(tests_bp)
+    app.register_blueprint(templates_bp)
+    app.register_blueprint(settings_bp)
 
     @app.route("/")
     def index():

@@ -44,3 +44,89 @@
 }
 .solution { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); font-size: 15px; }
 .solution b { color: var(--primary); }
+
+/* ---------- Builder ---------- */
+.btn.wide { width: 100%; }
+.btn.danger { border-color: #c62828; color: #c62828; background: transparent; }
+.btn.danger.ghost { background: transparent; }
+
+.field { display: block; }
+.field + .field { margin-top: 10px; }
+.field-label {
+  display: block;
+  font-size: 13px; color: var(--muted);
+  margin-bottom: 4px;
+}
+.input {
+  width: 100%; min-height: 44px;
+  padding: 8px 12px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font: inherit;
+  -webkit-appearance: none; appearance: none;
+}
+.input:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
+.field-error { display: block; color: #c62828; font-size: 13px; margin-top: 4px; }
+
+.segmented {
+  display: flex; gap: 0;
+  border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden;
+}
+.seg-btn {
+  flex: 1; min-height: 44px;
+  background: transparent; border: 0;
+  cursor: pointer;
+  color: var(--muted);
+}
+.seg-btn.active { background: var(--primary); color: var(--primary-text); }
+
+.subject-card { padding: 12px 14px; }
+.subject-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.subject-idx { font-size: 13px; color: var(--muted); font-weight: 600; }
+.subject-tools { display: flex; gap: 4px; }
+.icon-btn {
+  min-width: 40px; min-height: 40px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text);
+  cursor: pointer; font-size: 16px;
+}
+.icon-btn:disabled { opacity: .35; cursor: not-allowed; }
+.icon-btn.danger { color: #c62828; }
+
+.sub-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.card.summary {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  justify-content: space-between;
+  background: var(--bg);
+}
+.sum-row { font-size: 14px; font-weight: 600; }
+
+.error-box {
+  padding: 10px 12px;
+  border: 1px solid #c62828; border-radius: 10px;
+  background: rgba(198, 40, 40, 0.08);
+}
+
+.actions-row {
+  display: flex; gap: 8px;
+  margin-top: 12px;
+}
+.actions-row > * { flex: 1; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  padding: 8px 16px; border-radius: 999px;
+  background: var(--primary); color: var(--primary-text);
+  font-size: 14px; z-index: 100;
+}

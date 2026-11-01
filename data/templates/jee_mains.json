@@ -1,0 +1,30 @@
+{
+  "name": "JEE Mains",
+  "timer_mode": "total",
+  "total_minutes": 180.0,
+  "subjects": [
+    {
+      "name": "Physics",
+      "questions": 25,
+      "marks": 4.0,
+      "negative": 1.0,
+      "minutes": null
+    },
+    {
+      "name": "Chemistry",
+      "questions": 25,
+      "marks": 4.0,
+      "negative": 1.0,
+      "minutes": null
+    },
+    {
+      "name": "Maths",
+      "questions": 25,
+      "marks": 4.0,
+      "negative": 1.0,
+      "minutes": null
+    }
+  ],
+  "created_at": 1793515749.5348375,
+  "updated_at": 1793515749.5348427
+}
