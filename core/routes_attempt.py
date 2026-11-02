@@ -74,9 +74,19 @@ def create():
     if t_err:
         return jsonify(error=t_err), 422
 
-    v = test_loader.validate_test(test, template)
+    # strict_counts=False: fewer-than-needed allowed; 0-Q subjects skip ho jayenge.
+    # Sirf real errors (bad JSON, missing answer, etc.) block karte hain.
+    v = test_loader.validate_test(test, template, strict_counts=False)
     if v["errors"]:
         return jsonify(errors=v["errors"], warnings=v["warnings"]), 422
+
+    # Pehle check — koi valid question nahi to attempt save hi mat karo
+    has_any = any(
+        len(((test.get("subjects") or {}).get(s.get("name") or "")) or []) > 0
+        for s in template.get("subjects") or []
+    )
+    if not has_any:
+        return jsonify(error="Koi bhi subject me valid question nahi mila"), 422
 
     a = attempt_store.create_attempt(template, test, test_id)
     return jsonify(attempt_store.client_view(a, strip_answers=True))

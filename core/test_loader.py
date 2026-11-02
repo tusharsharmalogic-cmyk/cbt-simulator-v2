@@ -94,11 +94,16 @@ def validate_test(test, template=None, strict_counts=True):
             if name:
                 tmpl_subjs[name] = s
 
-    # template me jo subject hai par test me nahi -> error
+    # template me jo subject hai par test me nahi:
+    # strict_counts=True  -> error (import/validate screen ke liye purana behaviour)
+    # strict_counts=False -> warning (attempt start ke liye, 0-Q subject skip ho jayega)
     if template is not None:
         for name in tmpl_subjs:
             if name not in tsubs:
-                errors.append(f"'{name}' subject test me missing hai (template ko chahiye)")
+                if strict_counts:
+                    errors.append(f"'{name}' subject test me missing hai (template ko chahiye)")
+                else:
+                    warnings.append(f"'{name}' subject me 0 questions — skip hoga")
 
     # test me jo extra subject hai -> warning
     if template is not None:

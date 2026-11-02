@@ -80,17 +80,27 @@ def create_attempt(template, test, test_id):
     tpl = copy.deepcopy(template)
     questions = {}
     responses = {}
+    # 0-question subjects attempt me hi nahi jaate (test start fir bhi chalega)
+    # subject-mode timer bhi sirf active subjects ke windows compute karega.
+    active_subjects = []
     for s in tpl.get("subjects") or []:
         subj = s.get("name")
         need = int(s.get("questions") or 0)
         pool = (test.get("subjects") or {}).get(subj) or []
         chunk = pool[:need]
-        # snapshot questions (strip nothing here; strip on client view)
+        if not chunk:
+            continue  # skip empty subject
         questions[subj] = [copy.deepcopy(q) for q in chunk]
         responses[subj] = [
             {"choice": None, "marked": False, "visited": False, "time_spent": 0}
             for _ in chunk
         ]
+        active_subjects.append(dict(s))
+    # template ki copy me sirf active subjects rakho (client view + timer isi pe chalega)
+    tpl["subjects"] = active_subjects
+    if tpl.get("timer_mode") == "subject":
+        # subject-mode me total_minutes = active subjects ke minutes ka sum
+        tpl["total_minutes"] = sum(float(s.get("minutes") or 0) for s in active_subjects)
 
     now = time.time()
     first = (tpl.get("subjects") or [{}])[0].get("name")
