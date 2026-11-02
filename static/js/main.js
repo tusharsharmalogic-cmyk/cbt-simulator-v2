@@ -301,7 +301,7 @@ async function withRetry(fn, label) {
 
 function sendVisit(nextSubject, nextIndex) {
   // flushes time spent on lastVisit's question before switching
-  if (!testCtl.attemptId || !testCtl.attempt) return Promise.resolve();
+  if (!testCtl.attemptId) return Promise.resolve();
   const prev = testCtl.lastVisit;
   let spent = 0;
   if (prev) spent = (performance.now() - prev.at) / 1000;
