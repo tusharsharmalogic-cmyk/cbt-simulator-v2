@@ -8,3 +8,4 @@ data/attempts/*.json
 data/settings.json
 .DS_Store
 *.log
+data/tests/*.json
