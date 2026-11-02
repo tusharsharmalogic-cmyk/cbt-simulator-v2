@@ -251,3 +251,19 @@
 .legend-dot.visited { background: #c62828; border-color: #c62828; }
 .legend-dot.answered { background: #2e7d32; border-color: #2e7d32; }
 .legend-dot.marked { background: #9c27b0; border-color: #9c27b0; }
+
+/* ---------- Step 5: attempt screen ---------- */
+.timer-left { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.timer-right { display: flex; gap: 6px; align-items: center; }
+.subj-timer-label { font-size: 13px; color: var(--muted); }
+.subj-timer { font-family: ui-monospace, monospace; font-weight: 600; color: var(--primary); }
+.submit-btn { background: #2e7d32 !important; color: #fff !important; border-color: #2e7d32 !important; }
+.subj-tab.locked { opacity: .4; cursor: not-allowed; }
+
+.save-banner {
+  position: fixed; left: 50%; top: 60px; transform: translateX(-50%);
+  padding: 8px 16px; border-radius: 999px;
+  background: #ff9800; color: #fff; font-size: 13px; z-index: 200;
+  box-shadow: 0 2px 8px rgba(0,0,0,.2);
+}
+.save-banner[hidden] { display: none; }

@@ -1,100 +1,45 @@
-// Test screen (UI only, Step 4). State.attempt ke saath kaam karta hai.
-// Step 5 me source state ko server se load karega, baaki UI same rahega.
+// Test screen. state.attempt (server view) + testCtl (timing) ka use karta hai.
+// All actions callback se jaate hain -> main.js server pe call karke refresh karta hai.
 
 const testScreen = (() => {
 
-  // ---------- Attempt factory ----------
-  function makeAttempt(template, test) {
-    const questions = {};
-    const responses = {};
-    (template.subjects || []).forEach(s => {
-      const subj = s.name;
-      const pool = (test.subjects && test.subjects[subj]) || [];
-      const qs = pool.slice(0, s.questions).map(q => ({
-        q: q.q,
-        svg: q.svg,
-        options: [...(q.options || [])],
-        answer: q.answer,
-        solution: q.solution,
-      }));
-      questions[subj] = qs;
-      responses[subj] = qs.map(() => ({ choice: null, marked: false, visited: false, time_spent: 0 }));
-    });
-    const firstSubj = template.subjects && template.subjects[0] ? template.subjects[0].name : null;
-    return {
-      id: 'local_' + Date.now(),
-      status: 'in_progress',
-      created_at: Date.now() / 1000,
-      start_time: Date.now() / 1000,
-      template: JSON.parse(JSON.stringify(template)),
-      test_id: test.id || null,
-      test_name: test.name || 'Test',
-      questions,
-      responses,
-      current: { subject: firstSubj, index: 0 },
-      submitted_at: null,
-      submit_reason: null,
-      result: null,
-    };
-  }
-
-  // ---------- Navigation helpers ----------
+  // ---------- Navigation helpers (pure) ----------
   function subjectsOf(a) { return Object.keys(a.questions); }
-
-  function visitCurrent(a) {
-    const { subject, index } = a.current;
-    const r = a.responses[subject] && a.responses[subject][index];
-    if (r) r.visited = true;
-  }
 
   function hasPrev(a) {
     if (a.current.index > 0) return true;
-    const subs = subjectsOf(a);
-    return subs.indexOf(a.current.subject) > 0;
+    return subjectsOf(a).indexOf(a.current.subject) > 0;
   }
 
   function hasNext(a) {
     const qs = a.questions[a.current.subject] || [];
     if (a.current.index < qs.length - 1) return true;
+    return subjectsOf(a).indexOf(a.current.subject) < subjectsOf(a).length - 1;
+  }
+
+  function prevTarget(a) {
+    if (a.current.index > 0) return { subject: a.current.subject, index: a.current.index - 1 };
     const subs = subjectsOf(a);
-    return subs.indexOf(a.current.subject) < subs.length - 1;
-  }
-
-  function goPrev(a) {
-    if (a.current.index > 0) {
-      a.current.index--;
-    } else {
-      const subs = subjectsOf(a);
-      const si = subs.indexOf(a.current.subject);
-      if (si > 0) {
-        const newSubj = subs[si - 1];
-        a.current = { subject: newSubj, index: (a.questions[newSubj] || []).length - 1 };
-      }
+    const si = subs.indexOf(a.current.subject);
+    if (si > 0) {
+      const ns = subs[si - 1];
+      return { subject: ns, index: (a.questions[ns] || []).length - 1 };
     }
-    visitCurrent(a);
+    return null;
   }
 
-  function goNext(a) {
+  function nextTarget(a) {
     const qs = a.questions[a.current.subject] || [];
-    if (a.current.index < qs.length - 1) {
-      a.current.index++;
-    } else {
-      const subs = subjectsOf(a);
-      const si = subs.indexOf(a.current.subject);
-      if (si < subs.length - 1) {
-        const newSubj = subs[si + 1];
-        a.current = { subject: newSubj, index: 0 };
-      }
+    if (a.current.index < qs.length - 1) return { subject: a.current.subject, index: a.current.index + 1 };
+    const subs = subjectsOf(a);
+    const si = subs.indexOf(a.current.subject);
+    if (si < subs.length - 1) {
+      const ns = subs[si + 1];
+      return { subject: ns, index: 0 };
     }
-    visitCurrent(a);
+    return null;
   }
 
-  function jumpTo(a, subject, index) {
-    a.current = { subject, index };
-    visitCurrent(a);
-  }
-
-  // ---------- Format ----------
   function formatTime(sec) {
     sec = Math.max(0, Math.floor(sec));
     const h = Math.floor(sec / 3600);
@@ -103,31 +48,59 @@ const testScreen = (() => {
     return [h, m, s].map(x => String(x).padStart(2, '0')).join(':');
   }
 
+  function lockedSubjects(a, timing) {
+    if (!timing || timing.mode !== 'subject') return new Set();
+    const set = new Set(timing.locked_subjects || []);
+    // future subjects bhi lock (jo current ke baad hain)
+    if (timing.subject) {
+      const subs = subjectsOf(a);
+      const ci = timing.subject.index;
+      subs.forEach((s, i) => { if (i !== ci) set.add(s); });
+    }
+    return set;
+  }
+
   // ---------- Render ----------
   function render(a, opts) {
-    // opts: {onChange, onOpenPalette}
+    // opts: {onChange(action), onOpenPalette(), onSubmit(), remainingSeconds, timing, onSubjectTab(subj)}
     const root = el('div', 'test-screen');
+    const timing = opts.timing || a.timing;
+    const locked = lockedSubjects(a, timing);
+    const isSubjectMode = timing && timing.mode === 'subject';
 
-    // Timer bar (static in Step 4)
+    // Timer bar
     const timerBar = el('div', 'test-timer-bar');
-    const totalMin = (a.template && a.template.total_minutes) || 0;
-    const timerText = totalMin ? formatTime(totalMin * 60) : '—';
-    timerBar.append(el('span', 'timer', '⏱ ' + timerText));
+    const timerLeft = el('div', 'timer-left');
+    timerLeft.append(el('span', 'timer', '⏱ ' + formatTime(opts.remainingSeconds ?? 0)));
+    if (isSubjectMode && timing.subject) {
+      timerLeft.append(el('span', 'subj-timer-label', ' | ' + timing.subject.name + ' '));
+      timerLeft.append(el('span', 'subj-timer', formatTime(timing.subject.remaining_seconds)));
+    }
+    timerBar.append(timerLeft);
+
+    const rightSide = el('div', 'timer-right');
     const palBtn = el('button', 'btn ghost small', '⊞ Palette');
     palBtn.type = 'button';
     palBtn.addEventListener('click', () => opts.onOpenPalette && opts.onOpenPalette());
-    timerBar.append(palBtn);
+    rightSide.append(palBtn);
+    const submitBtn = el('button', 'btn small submit-btn', 'Submit');
+    submitBtn.type = 'button';
+    submitBtn.addEventListener('click', () => opts.onSubmit && opts.onSubmit());
+    rightSide.append(submitBtn);
+    timerBar.append(rightSide);
     root.append(timerBar);
 
     // Subject tabs
     const tabs = el('div', 'subject-tabs');
     subjectsOf(a).forEach(subj => {
-      const b = el('button', 'subj-tab' + (subj === a.current.subject ? ' active' : ''), subj);
+      const lk = locked.has(subj);
+      const cls = 'subj-tab' + (subj === a.current.subject ? ' active' : '') + (lk ? ' locked' : '');
+      const b = el('button', cls, subj + (lk ? ' 🔒' : ''));
       b.type = 'button';
+      b.disabled = lk;
       b.addEventListener('click', () => {
-        if (subj === a.current.subject) return;
-        jumpTo(a, subj, 0);
-        opts.onChange && opts.onChange();
+        if (lk || subj === a.current.subject) return;
+        opts.onSubjectTab && opts.onSubjectTab(subj);
       });
       tabs.append(b);
     });
@@ -146,9 +119,8 @@ const testScreen = (() => {
         showSolution: false,
         choice: r ? r.choice : null,
         onSelect: (letter) => {
-          if (!r) return;
-          r.choice = letter;   // same letter tap = no-op (use Clear)
-          opts.onChange && opts.onChange();
+          if (r && r.choice === letter) return;
+          opts.onChange && opts.onChange({ type: 'answer', subject: subj, index: idx, choice: letter });
         },
       });
       if (r && r.marked) qCard.classList.add('marked-q');
@@ -166,15 +138,17 @@ const testScreen = (() => {
     const prevBtn = el('button', 'nav-btn', '← Prev');
     prevBtn.type = 'button';
     prevBtn.disabled = !hasPrev(a);
-    prevBtn.addEventListener('click', () => { goPrev(a); opts.onChange && opts.onChange(); });
+    prevBtn.addEventListener('click', () => {
+      const t = prevTarget(a);
+      if (t) opts.onChange && opts.onChange({ type: 'navigate', subject: t.subject, index: t.index });
+    });
 
     const markBtn = el('button', 'nav-btn' + (r && r.marked ? ' active' : ''),
                         r && r.marked ? 'Unmark' : 'Mark');
     markBtn.type = 'button';
     markBtn.addEventListener('click', () => {
       if (!r) return;
-      r.marked = !r.marked;
-      opts.onChange && opts.onChange();
+      opts.onChange && opts.onChange({ type: 'mark', subject: subj, index: idx, marked: !r.marked });
     });
 
     const clearBtn = el('button', 'nav-btn', 'Clear');
@@ -182,14 +156,16 @@ const testScreen = (() => {
     clearBtn.disabled = !(r && r.choice);
     clearBtn.addEventListener('click', () => {
       if (!r) return;
-      r.choice = null;
-      opts.onChange && opts.onChange();
+      opts.onChange && opts.onChange({ type: 'clear', subject: subj, index: idx });
     });
 
     const nextBtn = el('button', 'nav-btn primary', 'Next →');
     nextBtn.type = 'button';
     nextBtn.disabled = !hasNext(a);
-    nextBtn.addEventListener('click', () => { goNext(a); opts.onChange && opts.onChange(); });
+    nextBtn.addEventListener('click', () => {
+      const t = nextTarget(a);
+      if (t) opts.onChange && opts.onChange({ type: 'navigate', subject: t.subject, index: t.index });
+    });
 
     bar.append(prevBtn, markBtn, clearBtn, nextBtn);
     root.append(bar);
@@ -197,5 +173,5 @@ const testScreen = (() => {
     return root;
   }
 
-  return { makeAttempt, render, formatTime, visitCurrent, jumpTo, subjectsOf };
+  return { render, formatTime, subjectsOf, prevTarget, nextTarget, lockedSubjects };
 })();
