@@ -1,0 +1,50 @@
+{
+  "name": "Test Import 1",
+  "subjects": {
+    "Physics": [
+      {
+        "q": "P1",
+        "options": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "answer": "A"
+      },
+      {
+        "q": "P2",
+        "options": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "answer": "B"
+      }
+    ],
+    "Chemistry": [
+      {
+        "q": "C1",
+        "options": [
+          "A",
+          "B",
+          "C"
+        ],
+        "answer": "C"
+      }
+    ],
+    "Maths": [
+      {
+        "q": "M1",
+        "options": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "answer": "D"
+      }
+    ]
+  }
+}

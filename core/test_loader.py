@@ -69,11 +69,13 @@ def list_tests():
 
 # ---------- validation ----------
 
-def validate_test(test, template=None):
+def validate_test(test, template=None, strict_counts=True):
     """Test ko template ke hisaab se check karo.
 
     template=None -> saare questions check karo.
     template diya -> sirf first N questions per subject check (jo use honge).
+    strict_counts=False -> "fewer than needed" error mat do (import flow ke liye,
+                          template se kam questions allowed).
     Returns: {"errors": [str], "warnings": [str]}
     """
     errors, warnings = [], []
@@ -113,10 +115,12 @@ def validate_test(test, template=None):
         if template is not None and subj_name in tmpl_subjs:
             needed = tmpl_subjs[subj_name].get("questions", 0)
             if len(qs) < needed:
-                errors.append(f"{subj_name}: test me {len(qs)} questions hain, template ko {needed} chahiye")
+                if strict_counts:
+                    errors.append(f"{subj_name}: test me {len(qs)} questions hain, template ko {needed} chahiye")
                 to_check = qs
             elif len(qs) > needed:
-                warnings.append(f"{subj_name}: test me {len(qs)} questions hain, template sirf {needed} lega (extra ignore)")
+                if strict_counts:
+                    warnings.append(f"{subj_name}: test me {len(qs)} questions hain, template sirf {needed} lega (extra ignore)")
                 to_check = qs[:needed]
             else:
                 to_check = qs

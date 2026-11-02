@@ -7,6 +7,7 @@ async function _json(url, opts) {
     err.status = r.status;
     err.errors = data.errors;
     err.data = data;
+    err.skipped = data.skipped;
     throw err;
   }
   return data;
@@ -30,6 +31,23 @@ const api = {
   test: (id) => api.get('/api/tests/' + encodeURIComponent(id)),
   validateTest: (id, templateId) => api.get(
     `/api/tests/${encodeURIComponent(id)}/validate?template=${encodeURIComponent(templateId)}`),
+
+  importTests: async (files, templateId, name) => {
+    const fd = new FormData();
+    files.forEach(f => fd.append('files[]', f, f.name));
+    fd.append('template_id', templateId);
+    if (name) fd.append('name', name);
+    const r = await fetch('/api/tests/import', { method: 'POST', body: fd });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const err = new Error(data.error || (data.errors && data.errors[0]) || `HTTP ${r.status}`);
+      err.status = r.status;
+      err.errors = data.errors;
+      err.skipped = data.skipped;
+      throw err;
+    }
+    return data;
+  },
 
   settings: () => api.get('/api/settings'),
   saveSettings: (theme) => api.put('/api/settings', { theme }),

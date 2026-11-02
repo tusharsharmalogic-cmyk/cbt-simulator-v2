@@ -323,3 +323,63 @@
 .row-body { padding-top: 12px; margin-top: 10px; border-top: 1px dashed var(--border); }
 .row-body .card { padding: 12px; background: var(--bg); }
 .ans-line { margin-top: 10px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* ---------- Import UI (Setup Step 7) ---------- */
+.file-input {
+  padding: 8px 6px;
+  background: var(--bg);
+}
+.file-row {
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--muted);
+  border-bottom: 1px dashed var(--border);
+}
+.file-row:last-child { border-bottom: 0; }
+
+.ok-box .ok-title {
+  font-weight: 600;
+  color: #2e7d32;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+.import-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+.import-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 8px;
+  align-items: center;
+  font-size: 13px;
+}
+.import-subj { font-weight: 600; }
+.import-count { color: var(--muted); text-align: right; font-family: ui-monospace, monospace; }
+.import-bar {
+  grid-column: 1 / -1;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.import-bar-fill {
+  height: 100%;
+  background: #2e7d32;
+  transition: width 0.2s ease-out;
+}
+.import-bar-fill.short { background: #f9a825; }
+
+.skip-details { margin-top: 12px; }
+.skip-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 6px 0;
+}
+.skip-details > div { padding: 2px 0 2px 12px; }
+
+.small { font-size: 12px; }

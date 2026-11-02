@@ -194,50 +194,64 @@ async function showBuilder(id) {
   typeset(app);
 }
 
-// ========== Setup (Step 3 + real start Step 5) ==========
+// ========== Setup: template + import JSONs + start ==========
 async function showSetup() {
   state.screen = 'setup';
   show('Test shuru karo', el('p', 'muted', 'Load ho raha hai...'));
-  let templates = [], tests = [];
+  let templates = [];
   try { templates = await api.templates(); } catch {}
-  try { tests = await api.tests(); } catch {}
-  const s = setup.initialState(templates, tests);
-  const firstGood = tests.find(t => !t.error);
-  if (firstGood) s.testId = firstGood.id;
+  const s = setup.initialState(templates);
+
+  const opts = {
+    onTemplateChange: (id) => {
+      s.templateId = id;
+      // template change pe imported reset
+      s.imported = null; s.importError = null;
+      rerender();
+    },
+    onFilesPicked: (files) => {
+      s.files = files;
+      s.importError = null;
+      s.imported = null;
+      rerender();
+    },
+    onNameChange: (name) => { s.testName = name; },
+    onImport: doImport,
+    onStart: start,
+    onRemoveImport: () => { s.imported = null; s.files = []; s.testName = ''; s.importError = null; rerender(); },
+  };
 
   const rerender = () => {
-    app.replaceChildren(setup.render(s, {
-      onTemplateChange: (id) => { s.templateId = id; s.validation = null; rerender(); },
-      onTestChange: (id) => { s.testId = id; s.validation = null; rerender(); },
-      onValidate: validate,
-      onStart: start,
-    }));
+    app.replaceChildren(setup.render(s, opts));
     typeset(app);
   };
 
-  async function validate() {
-    s.validating = true; s.validateError = null; s.validation = null;
+  async function doImport() {
+    if (!s.files.length) { alert('Koi file select karo'); return; }
+    s.importing = true; s.importError = null; s.imported = null;
     rerender();
-    try { s.validation = await api.validateTest(s.testId, s.templateId); }
-    catch (e) { s.validateError = e.message; }
-    finally { s.validating = false; rerender(); }
+    try {
+      const res = await api.importTests(s.files, s.templateId, s.testName);
+      s.imported = res;
+    } catch (e) {
+      s.importError = { message: e.message, skipped: e.skipped };
+    } finally {
+      s.importing = false;
+      rerender();
+    }
   }
 
   async function start() {
+    if (!s.imported || !s.imported.test_id) return;
     try {
-      const a = await api.createAttempt(s.templateId, s.testId);
+      const a = await api.createAttempt(s.templateId, s.imported.test_id);
       location.hash = `#/attempt/${a.id}`;
     } catch (e) {
       alert('Start fail: ' + e.message);
     }
   }
 
-  show('Test shuru karo', setup.render(s, {
-    onTemplateChange: (id) => { s.templateId = id; s.validation = null; rerender(); },
-    onTestChange: (id) => { s.testId = id; s.validation = null; rerender(); },
-    onValidate: validate,
-    onStart: start,
-  }));
+  rerender();
   typeset(app);
 }
 
