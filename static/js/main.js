@@ -352,8 +352,11 @@ async function showAttempt(id) {
   }
 
   if (state.attempt.status === 'submitted') {
-    // Step 6 result screen aayega; filhaal basic alert
-    show('Result', el('p', 'ok-box', 'Attempt submitted.'), el('pre', 'muted', JSON.stringify(state.attempt.result, null, 2)));
+    // Step 6: full result screen
+    stopTicker(); stopSync();
+    titleEl.textContent = 'Result';
+    backBtn.hidden = false;
+    show('Result', resultScreen.render(state.attempt, {}));
     return;
   }
 
@@ -407,8 +410,8 @@ function renderTest() {
   const a = state.attempt;
   if (!a || a.status !== 'in_progress') {
     if (a && a.status === 'submitted') {
-      show('Result', el('p', 'ok-box', 'Attempt submitted.'),
-           el('pre', 'muted', JSON.stringify(a.result, null, 2)));
+      titleEl.textContent = 'Result';
+      show('Result', resultScreen.render(a, {}));
     }
     return;
   }
