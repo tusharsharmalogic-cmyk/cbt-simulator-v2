@@ -26,6 +26,11 @@ function renderQuestion(q, no, opts = {}) {
   (q.options || []).forEach((o, i) => {
     const li = el('li', 'option');
     li.append(el('span', 'lbl', String.fromCharCode(65 + i)), el('span', 'otext', String(o)));
+    if (opts.choice === String.fromCharCode(65 + i)) li.classList.add('selected');
+    if (opts.onSelect) {
+      li.classList.add('tap');
+      li.addEventListener('click', () => opts.onSelect(String.fromCharCode(65 + i)));
+    }
     ul.append(li);
   });
   card.append(ul);

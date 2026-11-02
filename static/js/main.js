@@ -185,6 +185,49 @@ async function showBuilder(id) {
   typeset(app);
 }
 
+// ---------- Test screen (Step 4: UI only, in-memory attempt) ----------
+let paletteOpen = false;
+let paletteEl = null;
+
+function showTestScreen() {
+  state.screen = 'test';
+  if (!state.attempt) {
+    location.hash = '#/setup';
+    return;
+  }
+  testScreen.visitCurrent(state.attempt);
+  renderTest();
+}
+
+function renderTest() {
+  const root = testScreen.render(state.attempt, {
+    onChange: () => renderTest(),
+    onOpenPalette: () => { paletteOpen = true; mountPalette(); },
+  });
+  document.getElementById('app').replaceChildren(root);
+  titleEl.textContent = state.attempt.test_name || 'Test';
+  // Test screen pe accidental back nahi — Step 5 me Submit se bahar nikalega.
+  backBtn.hidden = true;
+  typeset(document.getElementById('app'));
+}
+
+function mountPalette() {
+  if (paletteEl) paletteEl.remove();
+  if (!paletteOpen) return;
+  paletteEl = palette.render(state.attempt, {
+    onJump: (subj, idx) => {
+      testScreen.jumpTo(state.attempt, subj, idx);
+      renderTest();
+    },
+    onClose: () => { paletteOpen = false; unmountPalette(); },
+  });
+  document.body.append(paletteEl);
+}
+
+function unmountPalette() {
+  if (paletteEl) { paletteEl.remove(); paletteEl = null; }
+}
+
 // ---------- Setup (Step 3) ----------
 async function showSetup() {
   state.screen = 'setup';
@@ -223,10 +266,18 @@ async function showSetup() {
     }
   }
 
-  function start() {
-    // Step 3: sirf state.attempt banao, Step 4 screen pe jao (in-memory)
+  async function start() {
+    // Step 4: in-memory attempt banao aur test screen pe jao.
     // Step 5 me yeh api POST /api/attempts hoga.
-    alert('Step 4/5 me real start aayega. Filhaal validation pass ho gaya.');
+    try {
+      const t = await api.template(s.templateId);
+      const test = await api.test(s.testId);
+      test.id = s.testId;
+      state.attempt = testScreen.makeAttempt(t, test);
+      location.hash = '#/test';
+    } catch (e) {
+      alert('Start fail: ' + e.message);
+    }
   }
 
   show('Test shuru karo', setup.render(s, {
@@ -263,6 +314,7 @@ async function route() {
   if (parts[0] === 'templates' && parts[1]) return showBuilder(parts[1]);
   if (parts[0] === 'preview' && parts[1]) return showPreview(parts[1]);
   if (parts[0] === 'setup') return showSetup();
+  if (parts[0] === 'test') return showTestScreen();
   return showHome();
 }
 
