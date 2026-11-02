@@ -17,7 +17,7 @@ Open http://127.0.0.1:8080 on phone browser.
 - [x] Step 3 — Test validator + Setup screen
 - [x] Step 4 — Test screen (UI)
 - [x] Step 5 — Server-side attempts + timer + submit
-- [ ] Step 6 — Scoring + Result
+- [x] Step 6 — Scoring + Result
 - [ ] Step 7 — AI_PROMPT.md
 
 ## Layout
