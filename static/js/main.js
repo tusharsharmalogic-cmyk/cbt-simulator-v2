@@ -667,11 +667,17 @@ async function showAvailableTests() {
 
   renderList('');
 
-  // Import CTA
-  const importBtn = el('button', 'import-cta', '⬆ Import Test from JSON');
+  // Bottom padding so fixed CTA doesn't cover last card
+  wrap.style.paddingBottom = '80px';
+
+  // Fixed bottom CTA
+  const importBtn = el('button', 'import-cta fixed-bottom', '⬆ Import Test from JSON');
   importBtn.type = 'button';
   importBtn.addEventListener('click', () => { location.hash = '#/setup'; });
-  wrap.append(importBtn);
+  document.body.append(importBtn);
+  // cleanup on screen change
+  if (state._availCta && state._availCta.parentNode) state._availCta.remove();
+  state._availCta = importBtn;
 
   show('Available Tests', wrap);
   backBtn.hidden = false;
@@ -704,6 +710,16 @@ async function showCompletedTests() {
       if (typeof a.score === 'number') {
         card.append(el('span', 'cc-score', `${a.score} / ${a.max}`));
       }
+      const delBtn = el('button', 'btn ghost danger small', '🗑');
+      delBtn.type = 'button';
+      delBtn.title = 'Delete';
+      delBtn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        if (!confirm('Is completed test ko delete karna hai?')) return;
+        try { await api.deleteAttempt(a.id); showCompletedTests(); }
+        catch (e) { alert('Delete fail: ' + e.message); }
+      });
+      card.append(delBtn);
       card.addEventListener('click', () => { location.hash = `#/attempt/${a.id}`; });
       wrap.append(card);
     });
@@ -746,6 +762,14 @@ async function route() {
   // leaving test screen → flush
   if (state.screen === 'test' && !location.hash.startsWith('#/attempt/')) {
     stopTicker(); stopSync();
+  }
+  // remove floating CTA if we're not on available tests anymore
+  if (state._availCta) {
+    const h = (location.hash || '#/home');
+    if (!h.startsWith('#/available')) {
+      state._availCta.remove();
+      state._availCta = null;
+    }
   }
   const hash = location.hash || '#/home';
   const parts = hash.replace(/^#\//, '').split('/');
