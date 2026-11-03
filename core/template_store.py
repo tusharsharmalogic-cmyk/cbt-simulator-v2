@@ -187,7 +187,10 @@ def _summary(tid, t):
         "timer_mode": t.get("timer_mode", "total"),
         "total_minutes": t.get("total_minutes"),
         "subjects": [
-            {"name": s.get("name", ""), "questions": s.get("questions", 0)}
+            {"name": s.get("name", ""),
+             "questions": s.get("questions", 0),
+             "marks": s.get("marks", 0),
+             "negative": s.get("negative", 0)}
             for s in t.get("subjects", [])
         ],
     }

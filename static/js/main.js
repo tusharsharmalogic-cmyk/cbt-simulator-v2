@@ -39,109 +39,35 @@ function cycleTheme() {
 // ========== Home ==========
 async function showHome() {
   state.screen = 'home';
-  show('CBT Simulator', el('p', 'muted', 'Load ho raha hai...'));
-  let templates = [], tests = [], attempts = [];
-  try { templates = await api.templates(); } catch {}
-  try { tests = await api.tests(); } catch {}
+  const wrap = el('div', 'home-menu');
+  wrap.append(el('div', 'home-title', 'CBT SIMULATOR'));
+
+  let attempts = [];
   try { attempts = await api.attempts(); } catch {}
-  state.templates = templates;
-
-  const wrap = el('div', 'stack');
-
-  // Resume in-progress attempts first
   const inprog = attempts.filter(a => a.status === 'in_progress');
-  if (inprog.length) {
-    wrap.append(el('h2', 'section-title', 'Resume'));
-    inprog.forEach(a => {
-      const card = el('div', 'card');
-      card.append(el('h3', '', a.test_name || 'Test'));
-      const chips = el('div', 'chips');
-      chips.append(el('span', 'chip', a.template_name || '—'));
-      chips.append(el('span', 'chip', 'In progress'));
-      card.append(chips);
-      const row = el('div', 'actions-row');
-      const resume = el('button', 'btn', 'Resume');
-      resume.type = 'button';
-      resume.addEventListener('click', () => { location.hash = `#/attempt/${a.id}`; });
-      const del = el('button', 'btn ghost danger', 'Delete');
-      del.type = 'button';
-      del.addEventListener('click', async () => {
-        if (!confirm('Is attempt ko delete karna hai?')) return;
-        try { await api.deleteAttempt(a.id); showHome(); } catch (e) { alert('Delete fail: ' + e.message); }
-      });
-      row.append(resume, del);
-      card.append(row);
-      wrap.append(card);
-    });
-  }
 
-  // Templates
-  wrap.append(el('h2', 'section-title', 'Exam Templates'));
-  if (!templates.length) {
-    wrap.append(el('p', 'muted', 'Abhi koi template nahi. "New template" se banao.'));
-  } else {
-    templates.forEach((t) => {
-      const card = el('div', 'card tap');
-      card.append(el('h3', '', t.name));
-      const meta = el('div', 'chips');
-      meta.append(el('span', 'chip', t.timer_mode === 'subject' ? 'Subject timer' : `Total ${t.total_minutes || '?'} min`));
-      (t.subjects || []).forEach(s => meta.append(el('span', 'chip', `${s.name}: ${s.questions}Q`)));
-      card.append(meta);
-      card.addEventListener('click', () => { location.hash = `#/templates/${t.id}`; });
-      wrap.append(card);
-    });
-  }
-  const newBtn = el('button', 'btn wide', '+ New template');
-  newBtn.type = 'button';
-  newBtn.addEventListener('click', () => { location.hash = '#/templates/new'; });
-  wrap.append(newBtn);
+  const items = [
+    { icon: '▶', label: 'Start New Test', primary: true, hash: '#/setup' },
+    { icon: '📋', label: 'Available Test', hash: '#/available' },
+    { icon: '✅', label: 'Completed Test', hash: '#/completed' },
+    { icon: '📄', label: 'Subject Templates', hash: '#/templates' },
+    { icon: '⚙', label: 'Setting', hash: '#/settings' },
+  ];
+  items.forEach(it => {
+    const b = el('button', 'menu-btn' + (it.primary ? ' primary' : ''));
+    b.type = 'button';
+    b.append(el('span', 'menu-icon', it.icon));
+    b.append(el('span', 'menu-label', it.label));
+    if (it.hash === '#/setup' && inprog.length) {
+      b.append(el('span', 'chip', 'Resume'));
+    }
+    b.addEventListener('click', () => { location.hash = it.hash; });
+    wrap.append(b);
+  });
 
-  // Setup button
-  const hasTemplate = templates.some(t => !t.error);
-  const hasTest = tests.some(t => !t.error);
-  if (hasTemplate && hasTest) {
-    const startBtn = el('button', 'btn wide', 'Start test \u2192');
-    startBtn.type = 'button';
-    startBtn.addEventListener('click', () => { location.hash = '#/setup'; });
-    wrap.append(startBtn);
-  }
-
-  // Tests list
-  wrap.append(el('h2', 'section-title', 'Tests'));
-  if (!tests.length) {
-    wrap.append(el('p', 'muted', 'data/tests/ me koi .json test nahi mila.'));
-  } else {
-    tests.forEach((t) => {
-      const card = el('div', 'card tap');
-      card.append(el('h3', '', t.name));
-      if (t.error) card.append(el('p', 'error', t.error));
-      else {
-        const chips = el('div', 'chips');
-        Object.entries(t.subjects).forEach(([s, n]) => chips.append(el('span', 'chip', `${s}: ${n} Q`)));
-        card.append(chips);
-        card.addEventListener('click', () => { location.hash = `#/preview/${t.id}`; });
-      }
-      wrap.append(card);
-    });
-  }
-
-  // Finished attempts (Step 6 will link result; now just show scores)
-  const done = attempts.filter(a => a.status === 'submitted');
-  if (done.length) {
-    wrap.append(el('h2', 'section-title', 'Finished'));
-    done.forEach(a => {
-      const card = el('div', 'card tap');
-      card.append(el('h3', '', a.test_name || 'Test'));
-      const chips = el('div', 'chips');
-      chips.append(el('span', 'chip', a.template_name || '—'));
-      if (typeof a.score === 'number') chips.append(el('span', 'chip', `${a.score} / ${a.max}`));
-      card.append(chips);
-      card.addEventListener('click', () => { location.hash = `#/attempt/${a.id}`; });
-      wrap.append(card);
-    });
-  }
-
-  show('CBT Simulator', wrap);
+  wrap.append(el('div', 'home-footer', 'Prepare • Practice • Perform'));
+  show('', wrap);
+  backBtn.hidden = true;
 }
 
 // ========== Builder ==========

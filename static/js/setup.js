@@ -10,12 +10,11 @@ const setup = (() => {
 
   function initialState(templates, tests) {
     const firstT = templates.find(t => !t.error);
-    const firstTest = tests.find(t => !t.error);
     return {
       templates,
       tests,
       templateId: firstT ? firstT.id : null,
-      testId: firstTest ? firstTest.id : null,
+      testId: null,
       testName: '',
       // import state
       files: [],
@@ -34,7 +33,15 @@ const setup = (() => {
     (t.subjects || []).forEach(sub => {
       const need = Number(sub.questions) || 0;
       const have = Number((test.subjects || {})[sub.name] || 0);
-      rows.push({ name: sub.name, need, have, marks: sub.marks, negative: sub.negative });
+      // Only show subjects that have at least 1 question in the test
+      if (have <= 0) return;
+      rows.push({
+        name: sub.name,
+        need,
+        have,
+        marks: Number(sub.marks) || 0,
+        negative: Number(sub.negative) || 0,
+      });
     });
     return rows;
   }
@@ -81,6 +88,10 @@ const setup = (() => {
       o.value = ''; o.textContent = '(koi test nahi — import karo)';
       testSel.append(o); testSel.disabled = true;
     } else {
+      const ph = document.createElement('option');
+      ph.value = ''; ph.textContent = '— Test chuno —';
+      if (!s.testId) ph.selected = true;
+      testSel.append(ph);
       goodTests.forEach(t => {
         const total = Object.values(t.subjects || {}).reduce((a, n) => a + n, 0);
         const o = document.createElement('option');
@@ -108,8 +119,8 @@ const setup = (() => {
     nameField.append(nameInp);
     root.append(nameField);
 
-    // 4. Test Details (progress bars)
-    const details = computeDetails(s);
+    // 4. Test Details (progress bars) — only when a test is selected
+    const details = s.testId ? computeDetails(s) : [];
     if (details.length) {
       const detCard = el('div', 'card');
       detCard.append(el('h3', '', '📊 Test Details'));
