@@ -629,3 +629,38 @@
 .td-fill.full { background: linear-gradient(90deg, #16a34a, #22c55e); }
 .td-count { min-width: 50px; text-align: right; font-variant-numeric: tabular-nums; }
 .td-marks { font-size: 11px; color: var(--muted); }
+
+/* Fixed bottom CTA (available tests import) */
+.import-cta.fixed-bottom {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  margin: 0;
+  z-index: 50;
+  box-shadow: 0 6px 20px rgba(0,0,0,.35);
+}
+
+/* Available tests screen — flex layout, only list scrolls */
+.available-screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 10px;
+  padding: 0;
+  overflow: hidden;
+}
+.available-screen .search-bar { flex: 0 0 auto; margin-bottom: 0; }
+.available-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+  padding-bottom: 8px;
+}
+.available-screen .import-cta {
+  flex: 0 0 auto;
+  margin: 0;
+}

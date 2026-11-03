@@ -19,6 +19,9 @@ from core.routes_tests import bp as tests_bp
 def create_app():
     config.ensure_dirs()
     app = Flask(__name__, static_folder="static", template_folder="templates")
+    # Dev: static files ko browser cache na kare (CSS/JS changes turant dikhein)
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+    app.config['TEMPLATES_AUTO_RELOAD'] = True
     app.json.sort_keys = False      # subjects ka user wala order (Physics, Chem, ...) bana rahe
     app.json.ensure_ascii = False   # Hindi/unicode as-is
 

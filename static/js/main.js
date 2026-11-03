@@ -583,9 +583,9 @@ async function showAvailableTests() {
   let tests = [];
   try { tests = await api.tests(); } catch {}
 
-  const wrap = el('div', 'stack');
+  const wrap = el('div', 'available-screen');
 
-  // Search bar
+  // Search bar (fixed header area)
   const searchBar = el('div', 'search-bar');
   searchBar.append(el('span', '', '🔍'));
   const searchInput = document.createElement('input');
@@ -594,7 +594,8 @@ async function showAvailableTests() {
   searchBar.append(searchInput);
   wrap.append(searchBar);
 
-  const listWrap = el('div');
+  // Scrollable list
+  const listWrap = el('div', 'available-list');
   wrap.append(listWrap);
 
   function renderList(filter) {
@@ -667,17 +668,11 @@ async function showAvailableTests() {
 
   renderList('');
 
-  // Bottom padding so fixed CTA doesn't cover last card
-  wrap.style.paddingBottom = '80px';
-
-  // Fixed bottom CTA
-  const importBtn = el('button', 'import-cta fixed-bottom', '⬆ Import Test from JSON');
+  // Import CTA as footer of flex column (below scrollable list)
+  const importBtn = el('button', 'import-cta', '⬆ Import Test from JSON');
   importBtn.type = 'button';
   importBtn.addEventListener('click', () => { location.hash = '#/setup'; });
-  document.body.append(importBtn);
-  // cleanup on screen change
-  if (state._availCta && state._availCta.parentNode) state._availCta.remove();
-  state._availCta = importBtn;
+  wrap.append(importBtn);
 
   show('Available Tests', wrap);
   backBtn.hidden = false;

@@ -48,6 +48,9 @@ body {
   background: var(--bg);
   color: var(--text);
   font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
 h1, h2, h3 { margin: 0; line-height: 1.25; }
 button { font: inherit; color: inherit; }
