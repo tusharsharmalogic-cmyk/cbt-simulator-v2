@@ -171,6 +171,9 @@ async function showBuilder(id) {
       subjects: ed.subjects.map(s => ({
         name: s.name, questions: s.questions, marks: s.marks, negative: s.negative,
         minutes: ed.timer_mode === 'subject' ? s.minutes : null,
+        lock_mode: s.lock_mode || 'none',
+        per_question_seconds: s.lock_mode === 'question' ? s.per_question_seconds : null,
+        subject_minutes: s.lock_mode === 'subject' ? s.subject_minutes : null,
       })),
     };
     try {
@@ -313,17 +316,19 @@ async function withRetry(fn, label) {
   throw new Error(`save failed: ${label}`);
 }
 
+// Returns {ok:true, view} on success, {ok:false, jumped:true} if 409 auto-jumped,
+// {ok:false, error} otherwise. Callers MUST check .ok before overwriting state.current.
 function sendVisit(nextSubject, nextIndex) {
-  // flushes time spent on lastVisit's question before switching
-  if (!testCtl.attemptId) return Promise.resolve();
+  if (!testCtl.attemptId) return Promise.resolve({ ok: true });
   const prev = testCtl.lastVisit;
   let spent = 0;
   if (prev) spent = (performance.now() - prev.at) / 1000;
   testCtl.lastVisit = { subject: nextSubject, index: nextIndex, at: performance.now() };
   return withRetry(() => api.visit(testCtl.attemptId, nextSubject, nextIndex, spent), 'visit')
-    .then(v => { if (v.timing) setTimingFromServer(v.timing); })
+    .then(v => { if (v.timing) setTimingFromServer(v.timing); return { ok: true, view: v }; })
     .catch(e => {
-      if (e.status === 409) handle409(e);
+      if (e.status === 409) { handle409(e); return { ok: false, jumped: true }; }
+      return { ok: false, error: e };
     });
 }
 
@@ -332,10 +337,25 @@ function handle409(e) {
   if (code === 'time_up' || code === 'already_submitted') {
     // Force reload (server finalizes on GET)
     if (testCtl.attemptId) location.hash = `#/attempt/${testCtl.attemptId}`;
-  } else if (code === 'subject_locked') {
-    // Reload to let server tell us what's current
-    if (testCtl.attemptId) refreshAttempt();
+    return;
   }
+  if (code === 'subject_locked' || code === 'question_locked') {
+    const v = e.data && e.data.view;
+    if (v) { state.attempt = v; setTimingFromServer(v.timing); }
+    const nxt = e.data && e.data.next;
+    if (nxt) {
+      // auto-jump to next unlocked question
+      testCtl.lastVisit = { subject: nxt.subject, index: nxt.index, at: performance.now() };
+      state.attempt.current = { subject: nxt.subject, index: nxt.index };
+      renderTest();
+    } else {
+      // no unlocked question left -> server will auto-submit on next GET
+      refreshAttempt();
+    }
+    return;
+  }
+  // fallback
+  if (testCtl.attemptId) refreshAttempt();
 }
 
 async function refreshAttempt() {
@@ -385,15 +405,53 @@ function startTicker() {
     const t = remainingSeconds();
     const timerNode = document.querySelector('.test-timer-bar .timer');
     if (timerNode) timerNode.textContent = '⏱ ' + testScreen.formatTime(t);
-    // subject timer
+    // subject timer (global timer_mode=subject)
     if (testCtl.subjectEndAt) {
       const sr = (testCtl.subjectEndAt - performance.now()) / 1000;
       const subjTimer = document.querySelector('.subj-timer');
       if (subjTimer) subjTimer.textContent = testScreen.formatTime(Math.max(0, sr));
-      // subject window just expired -> server ko pull karo (current subject change ho jayega)
       if (sr <= 0 && !testCtl.submitting) {
         testCtl.submitting = true;
         refreshAttempt().finally(() => { testCtl.submitting = false; });
+      }
+    }
+    // per-Q / per-subject lock timers (client-side countdown from timestamps)
+    const a = state.attempt;
+    if (a) {
+      const subj = a.current.subject, idx = a.current.index;
+      const nowSec = Date.now() / 1000;
+      const ts = (a.template && a.template.subjects || []).find(s => s.name === subj);
+      const qNode = document.querySelector('.lock-timer.q-lock');
+      let lockExpired = false;
+      if (ts && ts.lock_mode === 'question' && ts.per_question_seconds) {
+        const r = (a.responses[subj] || [])[idx];
+        if (r && r.q_started_at != null) {
+          const rem = Math.max(0, r.q_started_at + ts.per_question_seconds - nowSec);
+          if (qNode) qNode.textContent = testScreen.formatTime(rem);
+          if (rem <= 0) lockExpired = true;
+        }
+      }
+      if (ts && ts.lock_mode === 'subject' && ts.subject_minutes) {
+        const started = (a.subject_started_at || {})[subj];
+        if (started != null) {
+          const rem = Math.max(0, started + ts.subject_minutes * 60 - nowSec);
+          const n2 = document.querySelector('.lock-timer.subj-lock');
+          if (n2) n2.textContent = testScreen.formatTime(rem);
+          if (rem <= 0) lockExpired = true;
+        }
+      }
+      if (lockExpired && !testCtl.submitting) {
+        testCtl.submitting = true;
+        // Re-visit current Q: server detects lock, returns next unlocked target
+        // (or auto-submits if everything is locked).
+        api.visit(testCtl.attemptId, subj, idx, 0)
+          .then(v => {
+            state.attempt = v; setTimingFromServer(v.timing); renderTest();
+          })
+          .catch(e => {
+            if (e.status === 409) handle409(e);
+          })
+          .finally(() => { testCtl.submitting = false; });
       }
     }
     if (t <= 0 && !testCtl.submitting) {
@@ -526,10 +584,7 @@ function mountPalette() {
     onJump: (subj, idx) => {
       paletteOpen = false; unmountPalette();
       if (state.attempt.current.subject === subj && state.attempt.current.index === idx) return;
-      sendVisit(subj, idx).then(() => {
-        state.attempt.current = { subject: subj, index: idx };
-        refreshAttempt();
-      });
+      sendVisit(subj, idx).then(r => { if (r.ok) refreshAttempt(); });
     },
     onClose: () => { paletteOpen = false; unmountPalette(); },
   });

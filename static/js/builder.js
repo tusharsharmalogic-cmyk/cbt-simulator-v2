@@ -33,6 +33,9 @@ const builder = (() => {
         marks: s.marks,
         negative: s.negative,
         minutes: s.minutes || 30,
+        lock_mode: s.lock_mode || 'none',
+        per_question_seconds: s.per_question_seconds || null,
+        subject_minutes: s.subject_minutes || null,
       })),
       errors: {},
     };
@@ -238,7 +241,71 @@ const builder = (() => {
     card.append(grid);
 
     if (subErr) card.append(el('div', 'field-error', subErr));
+
+    // Per-subject lock mode (mutually exclusive: per-Q XOR subject-max)
+    card.append(lockSection(s, () => opts.onStructure && opts.onStructure()));
+
     return card;
+  }
+
+  function lockSection(s, rerender) {
+    const wrap = el('div', 'lock-section');
+    wrap.append(el('span', 'field-label', 'Time lock (optional)'));
+
+    // Per-question toggle
+    const qRow = el('label', 'lock-row');
+    const qTog = document.createElement('input');
+    qTog.type = 'checkbox';
+    qTog.checked = s.lock_mode === 'question';
+    qTog.addEventListener('change', () => {
+      if (qTog.checked) {
+        s.lock_mode = 'question';
+        s.subject_minutes = null;
+        if (!s.per_question_seconds) s.per_question_seconds = 60;
+      } else {
+        s.lock_mode = 'none';
+        s.per_question_seconds = null;
+      }
+      rerender();
+    });
+    qRow.append(qTog, el('span', '', ' Per question maximum time'));
+    wrap.append(qRow);
+    if (s.lock_mode === 'question') {
+      const inp = numInput(s.per_question_seconds,
+        v => { s.per_question_seconds = v === '' ? null : Number(v); },
+        { min: 1, step: 1, inputmode: 'numeric' });
+      wrap.append(fieldRow('Seconds per question', inp));
+    }
+
+    // Per-subject toggle
+    const sRow = el('label', 'lock-row');
+    const sTog = document.createElement('input');
+    sTog.type = 'checkbox';
+    sTog.checked = s.lock_mode === 'subject';
+    sTog.disabled = false;
+    sTog.addEventListener('change', () => {
+      if (sTog.checked) {
+        s.lock_mode = 'subject';
+        s.per_question_seconds = null;
+        if (!s.subject_minutes) s.subject_minutes = 30;
+      } else {
+        s.lock_mode = 'none';
+        s.subject_minutes = null;
+      }
+      rerender();
+    });
+    sRow.append(sTog, el('span', '', ' Subject maximum time'));
+    wrap.append(sRow);
+    if (s.lock_mode === 'subject') {
+      const inp = numInput(s.subject_minutes,
+        v => { s.subject_minutes = v === '' ? null : Number(v); },
+        { min: 1, step: 1, inputmode: 'numeric' });
+      wrap.append(fieldRow('Minutes for subject', inp));
+    }
+
+    wrap.append(el('div', 'muted small',
+      'Sirf ek hi lock ek subject pe on ho sakta hai.'));
+    return wrap;
   }
 
   return { blankEditor, fromTemplate, render, computeSummary, updateSummary };

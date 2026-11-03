@@ -49,24 +49,47 @@ const testScreen = (() => {
   }
 
   function lockedSubjects(a, timing) {
-    if (!timing || timing.mode !== 'subject') return new Set();
-    const set = new Set(timing.locked_subjects || []);
-    // future subjects bhi lock (jo current ke baad hain)
-    if (timing.subject) {
-      const subs = subjectsOf(a);
-      const ci = timing.subject.index;
-      subs.forEach((s, i) => { if (i !== ci) set.add(s); });
+    const set = new Set();
+    if (timing && timing.mode === 'subject') {
+      (timing.locked_subjects || []).forEach(s => set.add(s));
+      if (timing.subject) {
+        const subs = subjectsOf(a);
+        const ci = timing.subject.index;
+        subs.forEach((s, i) => { if (i !== ci) set.add(s); });
+      }
+    }
+    // per-subject lock (from attempt.locks)
+    if (a && a.locks) {
+      Object.entries(a.locks).forEach(([subj, info]) => {
+        if (info && info.subject_locked) set.add(subj);
+      });
     }
     return set;
   }
 
   // ---------- Render ----------
+  function qLockRemaining(a, subj, idx, nowMs) {
+    const ts = (a.template && a.template.subjects || []).find(s => s.name === subj);
+    if (!ts || ts.lock_mode !== 'question' || !ts.per_question_seconds) return null;
+    const r = (a.responses[subj] || [])[idx];
+    if (!r || r.q_started_at == null) return null;
+    return Math.max(0, r.q_started_at + ts.per_question_seconds - nowMs / 1000);
+  }
+  function sLockRemaining(a, subj, nowMs) {
+    const ts = (a.template && a.template.subjects || []).find(s => s.name === subj);
+    if (!ts || ts.lock_mode !== 'subject' || !ts.subject_minutes) return null;
+    const started = (a.subject_started_at || {})[subj];
+    if (started == null) return null;
+    return Math.max(0, started + ts.subject_minutes * 60 - nowMs / 1000);
+  }
+
   function render(a, opts) {
     // opts: {onChange(action), onOpenPalette(), onSubmit(), remainingSeconds, timing, onSubjectTab(subj)}
     const root = el('div', 'test-screen');
     const timing = opts.timing || a.timing;
     const locked = lockedSubjects(a, timing);
     const isSubjectMode = timing && timing.mode === 'subject';
+    const nowMs = performance.now() + 0; // just for initial render
 
     // Timer bar
     const timerBar = el('div', 'test-timer-bar');
@@ -75,6 +98,19 @@ const testScreen = (() => {
     if (isSubjectMode && timing.subject) {
       timerLeft.append(el('span', 'subj-timer-label', ' | ' + timing.subject.name + ' '));
       timerLeft.append(el('span', 'subj-timer', formatTime(timing.subject.remaining_seconds)));
+    }
+    // Per-subject / per-Q lock timer (client-side from timestamps)
+    const curSubj0 = a.current.subject;
+    const curIdx0 = a.current.index;
+    const sRem0 = sLockRemaining(a, curSubj0, Date.now());
+    if (sRem0 != null) {
+      timerLeft.append(el('span', 'subj-timer-label', ' | 🔒 ' + curSubj0 + ' '));
+      timerLeft.append(el('span', 'lock-timer subj-lock', formatTime(sRem0)));
+    }
+    const qRem0 = qLockRemaining(a, curSubj0, curIdx0, Date.now());
+    if (qRem0 != null) {
+      timerLeft.append(el('span', 'subj-timer-label', ' | 🔒 Q '));
+      timerLeft.append(el('span', 'lock-timer q-lock', formatTime(qRem0)));
     }
     timerBar.append(timerLeft);
 
@@ -112,18 +148,27 @@ const testScreen = (() => {
     const q = (a.questions[subj] || [])[idx];
     const r = (a.responses[subj] || [])[idx];
 
+    const curSubjLockRem = sLockRemaining(a, subj, Date.now());
+    const curQLockRem = qLockRemaining(a, subj, idx, Date.now());
+    const qLocked = (curSubjLockRem != null && curSubjLockRem <= 0)
+                 || (curQLockRem != null && curQLockRem <= 0);
+
     if (!q) {
       root.append(el('p', 'error', 'Question missing'));
     } else {
       const qCard = renderQuestion(q, idx + 1, {
         showSolution: false,
         choice: r ? r.choice : null,
-        onSelect: (letter) => {
+        onSelect: qLocked ? null : (letter) => {
           if (r && r.choice === letter) return;
           opts.onChange && opts.onChange({ type: 'answer', subject: subj, index: idx, choice: letter });
         },
       });
       if (r && r.marked) qCard.classList.add('marked-q');
+      if (qLocked) {
+        qCard.classList.add('locked-q');
+        qCard.append(el('div', 'locked-banner', '🔒 Yeh question lock ho chuka hai'));
+      }
       root.append(qCard);
 
       const info = el('div', 'qinfo');
@@ -146,16 +191,17 @@ const testScreen = (() => {
     const markBtn = el('button', 'nav-btn' + (r && r.marked ? ' active' : ''),
                         r && r.marked ? 'Unmark' : 'Mark');
     markBtn.type = 'button';
+    markBtn.disabled = qLocked;
     markBtn.addEventListener('click', () => {
-      if (!r) return;
+      if (!r || qLocked) return;
       opts.onChange && opts.onChange({ type: 'mark', subject: subj, index: idx, marked: !r.marked });
     });
 
     const clearBtn = el('button', 'nav-btn', 'Clear');
     clearBtn.type = 'button';
-    clearBtn.disabled = !(r && r.choice);
+    clearBtn.disabled = !(r && r.choice) || qLocked;
     clearBtn.addEventListener('click', () => {
-      if (!r) return;
+      if (!r || qLocked) return;
       opts.onChange && opts.onChange({ type: 'clear', subject: subj, index: idx });
     });
 

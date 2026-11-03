@@ -137,15 +137,60 @@ def mark(aid):
     marked = body.get("marked")
     if not isinstance(subject, str) or not isinstance(index, int) or not isinstance(marked, bool):
         return jsonify(error="subject/index/marked required"), 422
-    lock = attempt_store._is_current_subject_allowed(a, subject, time.time())
+    now = time.time()
+    lock = attempt_store._is_current_subject_allowed(a, subject, now)
     if lock:
-        return jsonify(error=lock), 409
+        return _locked_response(a, lock, now)
+    if timer.subject_is_locked(a, subject, now):
+        return _locked_response(a, "subject_locked", now)
     try:
         attempt_store.apply_mark(a, subject, index, marked)
     except ValueError as e:
+        if str(e) == "question_locked":
+            return _locked_response(a, "question_locked", now)
         return jsonify(error=str(e)), 422
     return _save_and_view(a)
 
+
+def _find_next_unlocked(a, now=None):
+    """Current subject ki list + baaki subjects, order me pehla unlocked Q dhoondo.
+    Returns {subject, index} or None."""
+    if now is None:
+        now = time.time()
+    if timer.all_questions_locked(a, now):
+        return None
+    qs = a.get("questions") or {}
+    cur_subj = a.get("current", {}).get("subject")
+    cur_idx = a.get("current", {}).get("index", 0)
+    subs = list(qs.keys())
+    # cur subject ke baad se start karo, phir wrap
+    start_i = subs.index(cur_subj) if cur_subj in subs else 0
+    for off in range(len(subs)):
+        subj = subs[(start_i + off) % len(subs)]
+        if timer.subject_is_locked(a, subj, now):
+            continue
+        lst = qs[subj]
+        begin = cur_idx + 1 if subj == cur_subj else 0
+        for i in list(range(begin, len(lst))) + list(range(0, begin)):
+            if not timer.question_is_locked(a, subj, i, now):
+                return {"subject": subj, "index": i}
+    return None
+
+def _locked_response(a, reason, now=None):
+    """Build a 409 with the next unlocked target. Server-side current is also
+    advanced to that target (and its timers started + persisted) so the client
+    view doesn't bounce back to the old locked question."""
+    if now is None:
+        now = time.time()
+    nxt = _find_next_unlocked(a, now)
+    if nxt:
+        a["current"] = nxt
+        attempt_store._ensure_subject_started(a, nxt["subject"], now)
+        attempt_store._ensure_question_started(a, nxt["subject"], nxt["index"], now)
+        with attempt_store._LOCK:
+            attempt_store.save(a)
+    return jsonify(error=reason, next=nxt,
+                   view=attempt_store.client_view(a, strip_answers=True)), 409
 
 @bp.post("/<aid>/visit")
 def visit(aid):
@@ -158,9 +203,14 @@ def visit(aid):
     spent = body.get("spent", 0)
     if not isinstance(subject, str) or not isinstance(index, int):
         return jsonify(error="subject/index required"), 422
-    lock = attempt_store._is_current_subject_allowed(a, subject, time.time())
+    now = time.time()
+    lock = attempt_store._is_current_subject_allowed(a, subject, now)
     if lock:
-        return jsonify(error=lock), 409
+        return _locked_response(a, lock, now)
+    if timer.subject_is_locked(a, subject, now):
+        return _locked_response(a, "subject_locked", now)
+    if timer.question_is_locked(a, subject, index, now):
+        return _locked_response(a, "question_locked", now)
     try:
         attempt_store.apply_visit(a, subject, index, spent)
     except ValueError as e:

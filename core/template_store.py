@@ -118,12 +118,40 @@ def validate_template(data):
         else:
             minutes = None
 
+        # NEW: per-subject lock mode (mutually exclusive: question XOR subject)
+        lock_mode = s.get("lock_mode") or "none"
+        if lock_mode not in ("none", "question", "subject"):
+            errors.append(f"Subject '{sname or i}': lock_mode 'none'/'question'/'subject' hona chahiye")
+            lock_mode = "none"
+        pqs = s.get("per_question_seconds")
+        sm = s.get("subject_minutes")
+        if lock_mode == "question":
+            if not _is_number(pqs) or pqs <= 0:
+                errors.append(f"Subject '{sname or i}': per_question_seconds > 0 hona chahiye (question lock)")
+                pqs = None
+            if _is_number(sm) and sm > 0:
+                errors.append(f"Subject '{sname or i}': per-question aur subject-max dono ek saath on nahi ho sakte")
+            sm = None
+        elif lock_mode == "subject":
+            if not _is_number(sm) or sm <= 0:
+                errors.append(f"Subject '{sname or i}': subject_minutes > 0 hona chahiye (subject lock)")
+                sm = None
+            if _is_number(pqs) and pqs > 0:
+                errors.append(f"Subject '{sname or i}': per-question aur subject-max dono ek saath on nahi ho sakte")
+            pqs = None
+        else:
+            pqs = None
+            sm = None
+
         clean_subjects.append({
             "name": sname,
             "questions": q if _is_int(q) else 0,
             "marks": float(marks) if _is_number(marks) else 0,
             "negative": float(neg) if _is_number(neg) else 0,
             "minutes": minutes if _is_number(minutes) else None,
+            "lock_mode": lock_mode,
+            "per_question_seconds": float(pqs) if _is_number(pqs) and pqs > 0 else None,
+            "subject_minutes": float(sm) if _is_number(sm) and sm > 0 else None,
         })
 
     total_minutes = None

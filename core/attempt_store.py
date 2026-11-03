@@ -92,7 +92,8 @@ def create_attempt(template, test, test_id):
             continue  # skip empty subject
         questions[subj] = [copy.deepcopy(q) for q in chunk]
         responses[subj] = [
-            {"choice": None, "marked": False, "visited": False, "time_spent": 0}
+            {"choice": None, "marked": False, "visited": False, "time_spent": 0,
+             "q_started_at": None}
             for _ in chunk
         ]
         active_subjects.append(dict(s))
@@ -104,6 +105,12 @@ def create_attempt(template, test, test_id):
 
     now = time.time()
     first = (tpl.get("subjects") or [{}])[0].get("name")
+    # Start timers for the first subject + its first question right away
+    subject_started_at = {}
+    if first in responses:
+        subject_started_at[first] = now
+        if responses[first]:
+            responses[first][0]["q_started_at"] = now
     attempt = {
         "id": uuid.uuid4().hex[:12],
         "status": "in_progress",
@@ -114,6 +121,7 @@ def create_attempt(template, test, test_id):
         "test_name": test.get("name", test_id),
         "questions": questions,
         "responses": responses,
+        "subject_started_at": subject_started_at,
         "current": {"subject": first, "index": 0},
         "submitted_at": None,
         "submit_reason": None,
@@ -160,11 +168,17 @@ def finalize(attempt, reason, now=None):
 
 
 def ensure_finalized(attempt):
-    """If time is over, auto-submit. Returns (attempt, was_just_finalized)."""
+    """If time is over OR all questions locked, auto-submit.
+    Returns (attempt, was_just_finalized)."""
     if attempt.get("status") == "submitted":
         return attempt, False
     if timer.is_over(attempt):
         finalize(attempt, "time_up")
+        with _LOCK:
+            save(attempt)
+        return attempt, True
+    if timer.all_questions_locked(attempt):
+        finalize(attempt, "all_locked")
         with _LOCK:
             save(attempt)
         return attempt, True
@@ -174,7 +188,7 @@ def ensure_finalized(attempt):
 # ---------- client view ----------
 
 def client_view(attempt, strip_answers=True):
-    """Strip answer/solution while in_progress. Always include timing."""
+    """Strip answer/solution while in_progress. Always include timing + lock info."""
     a = copy.deepcopy(attempt)
     if strip_answers and a.get("status") == "in_progress":
         for subj, qs in (a.get("questions") or {}).items():
@@ -182,10 +196,41 @@ def client_view(attempt, strip_answers=True):
                 q.pop("answer", None)
                 q.pop("solution", None)
     a["timing"] = timer.timing(attempt)
+    if a.get("status") == "in_progress":
+        now = time.time()
+        locks = {}
+        for subj, qs in (a.get("questions") or {}).items():
+            s_locked = timer.subject_is_locked(attempt, subj, now)
+            s_rem = timer.subject_lock_remaining(attempt, subj, now)
+            qlocks = []
+            for i in range(len(qs)):
+                qlocks.append({
+                    "locked": timer.question_is_locked(attempt, subj, i, now),
+                    "remaining": timer.question_lock_remaining(attempt, subj, i, now),
+                })
+            locks[subj] = {"subject_locked": s_locked,
+                           "subject_remaining": s_rem, "questions": qlocks}
+        a["locks"] = locks
     return a
 
 
 # ---------- mutations ----------
+
+def _ensure_subject_started(attempt, subject, now=None):
+    """Record first-entry timestamp for subject-level lock tracking."""
+    if now is None:
+        now = time.time()
+    ss = attempt.setdefault("subject_started_at", {})
+    if subject not in ss:
+        ss[subject] = now
+
+def _ensure_question_started(attempt, subject, index, now=None):
+    """Record first-entry timestamp for per-question lock tracking."""
+    if now is None:
+        now = time.time()
+    rs = attempt["responses"].get(subject) or []
+    if 0 <= index < len(rs) and rs[index].get("q_started_at") is None:
+        rs[index]["q_started_at"] = now
 
 def apply_answer(attempt, subject, index, choice):
     if not _subject_in_template(attempt, subject):
@@ -193,6 +238,9 @@ def apply_answer(attempt, subject, index, choice):
     rs = attempt["responses"].get(subject) or []
     if not (0 <= index < len(rs)):
         raise ValueError("index out of range")
+    now = time.time()
+    if timer.question_is_locked(attempt, subject, index, now):
+        raise ValueError("question_locked")
     if choice is not None:
         qs = attempt["questions"].get(subject) or []
         if not (0 <= index < len(qs)):
@@ -202,6 +250,8 @@ def apply_answer(attempt, subject, index, choice):
             raise ValueError("invalid choice")
     rs[index]["choice"] = choice
     rs[index]["visited"] = True
+    _ensure_subject_started(attempt, subject, now)
+    _ensure_question_started(attempt, subject, index, now)
     return attempt
 
 
@@ -211,6 +261,8 @@ def apply_mark(attempt, subject, index, marked):
     rs = attempt["responses"].get(subject) or []
     if not (0 <= index < len(rs)):
         raise ValueError("index out of range")
+    if timer.question_is_locked(attempt, subject, index):
+        raise ValueError("question_locked")
     rs[index]["marked"] = bool(marked)
     rs[index]["visited"] = True
     return attempt
@@ -232,4 +284,7 @@ def apply_visit(attempt, subject, index, spent):
         rs[index]["time_spent"] = float(rs[index].get("time_spent") or 0) + spent
     rs[index]["visited"] = True
     attempt["current"] = {"subject": subject, "index": index}
+    # lock tracking: mark first entry (safe even if already started)
+    _ensure_subject_started(attempt, subject)
+    _ensure_question_started(attempt, subject, index)
     return attempt

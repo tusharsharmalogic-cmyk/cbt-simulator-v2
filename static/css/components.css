@@ -383,3 +383,51 @@
 .skip-details > div { padding: 2px 0 2px 12px; }
 
 .small { font-size: 12px; }
+
+/* ===== Per-subject / per-question lock UI ===== */
+.lock-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border, #3333);
+}
+.lock-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 14px;
+}
+.lock-row input[type="checkbox"] {
+  width: 18px; height: 18px;
+}
+.locked-banner {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #c62828;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 13px;
+  text-align: center;
+}
+.pal-btn.locked {
+  background: #555;
+  color: #ddd;
+  border-color: #444;
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.pal-btn.locked:hover, .pal-btn.locked:active {
+  transform: none;
+  background: #555;
+  border-color: #444;
+}
+.lock-timer {
+  font-family: ui-monospace, monospace;
+  font-weight: 600;
+  color: #e53935;
+}
+.lock-timer.subj-lock { color: #ff9800; }
+.lock-timer.q-lock   { color: #e53935; }
+.locked-q { opacity: 0.75; }

@@ -46,13 +46,23 @@ const palette = (() => {
     panel.append(head);
 
     // Grid
+    const lockInfo = (attempt.locks && attempt.locks[subj]) || null;
     const grid = el('div', 'palette-grid');
     list.forEach((r, i) => {
-      const st = statusOf(r);
-      const b = el('button', 'pal-btn ' + st, String(i + 1));
+      const ql = lockInfo && lockInfo.questions && lockInfo.questions[i];
+      const locked = !!(lockInfo && lockInfo.subject_locked) || !!(ql && ql.locked);
+      const st = statusOf(r, locked);
+      const label = locked ? (String(i + 1) + '🔒') : String(i + 1);
+      const b = el('button', 'pal-btn ' + st, label);
       b.type = 'button';
       if (attempt.current.index === i) b.classList.add('current');
-      b.addEventListener('click', () => {
+      if (locked) {
+        b.disabled = true;
+        b.setAttribute('aria-disabled', 'true');
+        b.title = 'Locked';
+      }
+      b.addEventListener('click', (ev) => {
+        if (locked) { ev.preventDefault(); ev.stopPropagation(); return; }
         opts.onJump && opts.onJump(subj, i);
         opts.onClose && opts.onClose();
       });
