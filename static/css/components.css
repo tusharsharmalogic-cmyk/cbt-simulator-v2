@@ -633,16 +633,20 @@
 /* Fixed bottom CTA (available tests import) */
 .import-cta.fixed-bottom {
   position: fixed;
-  left: 16px;
-  right: 16px;
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  left: 0;
+  right: 0;
+  bottom: 0;
   margin: 0;
-  padding: 12px 14px;
-  font-size: 15px;
-  width: auto;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  font-size: 16px;
+  width: 100%;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
   box-sizing: border-box;
   z-index: 50;
-  box-shadow: 0 6px 20px rgba(0,0,0,.35);
+  box-shadow: 0 -4px 12px rgba(0,0,0,.25);
 }
 
 /* Available tests screen — only the list scrolls */
@@ -663,7 +667,7 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding-right: 2px;
-  padding-bottom: 90px; /* space for fixed bottom CTA */
+  padding-bottom: 90px;
 }
 .available-screen .import-cta {
   flex: 0 0 auto;
