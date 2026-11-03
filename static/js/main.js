@@ -668,11 +668,15 @@ async function showAvailableTests() {
 
   renderList('');
 
-  // Import CTA as footer of flex column (below scrollable list)
-  const importBtn = el('button', 'import-cta', '⬆ Import Test from JSON');
+  // Fixed bottom CTA (list has bottom padding via CSS)
+  const importBtn = el('button', 'import-cta fixed-bottom', '⬆ Import Test from JSON');
   importBtn.type = 'button';
   importBtn.addEventListener('click', () => { location.hash = '#/setup'; });
-  wrap.append(importBtn);
+  document.body.append(importBtn);
+  if (state._availCta && state._availCta !== importBtn && state._availCta.parentNode) {
+    state._availCta.remove();
+  }
+  state._availCta = importBtn;
 
   show('Available Tests', wrap);
   backBtn.hidden = false;
