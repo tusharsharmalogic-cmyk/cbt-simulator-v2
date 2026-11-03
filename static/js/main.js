@@ -200,28 +200,33 @@ async function showBuilder(id) {
 // ========== Setup: template + import JSONs + start ==========
 async function showSetup() {
   state.screen = 'setup';
-  show('Test shuru karo', el('p', 'muted', 'Load ho raha hai...'));
-  let templates = [];
+  show('Start New Test', el('p', 'muted', 'Load ho raha hai...'));
+  let templates = [], tests = [];
   try { templates = await api.templates(); } catch {}
-  const s = setup.initialState(templates);
+  try { tests = await api.tests(); } catch {}
+  const s = setup.initialState(templates, tests);
 
   const opts = {
     onTemplateChange: (id) => {
       s.templateId = id;
-      // template change pe imported reset
-      s.imported = null; s.importError = null;
       rerender();
     },
+    onTestChange: (id) => {
+      s.testId = id;
+      const t = s.tests.find(x => x.id === id);
+      if (t) s.testName = t.name;
+      rerender();
+    },
+    onNameChange: (name) => { s.testName = name; },
     onFilesPicked: (files) => {
       s.files = files;
       s.importError = null;
       s.imported = null;
       rerender();
     },
-    onNameChange: (name) => { s.testName = name; },
+    onToggleImport: () => { s.showImport = !s.showImport; rerender(); },
     onImport: doImport,
     onStart: start,
-    onRemoveImport: () => { s.imported = null; s.files = []; s.testName = ''; s.importError = null; rerender(); },
   };
 
   const rerender = () => {
@@ -231,11 +236,17 @@ async function showSetup() {
 
   async function doImport() {
     if (!s.files.length) { alert('Koi file select karo'); return; }
+    if (!s.templateId) { alert('Pehle template chuno'); return; }
     s.importing = true; s.importError = null; s.imported = null;
     rerender();
     try {
       const res = await api.importTests(s.files, s.templateId, s.testName);
       s.imported = res;
+      // refresh tests + select newly imported
+      try { s.tests = await api.tests(); } catch {}
+      s.testId = res.test_id;
+      s.testName = res.test_name;
+      s.showImport = false;
     } catch (e) {
       s.importError = { message: e.message, skipped: e.skipped };
     } finally {
@@ -245,9 +256,9 @@ async function showSetup() {
   }
 
   async function start() {
-    if (!s.imported || !s.imported.test_id) return;
+    if (!s.templateId || !s.testId) { alert('Template aur Test dono chuno'); return; }
     try {
-      const a = await api.createAttempt(s.templateId, s.imported.test_id);
+      const a = await api.createAttempt(s.templateId, s.testId);
       location.hash = `#/attempt/${a.id}`;
     } catch (e) {
       alert('Start fail: ' + e.message);
@@ -256,6 +267,7 @@ async function showSetup() {
 
   rerender();
   typeset(app);
+  backBtn.hidden = false;
 }
 
 // ========== Test screen (Step 5: server-backed) ==========
@@ -607,6 +619,203 @@ async function showPreview(id) {
 }
 
 // ========== Router ==========
+// ========== Templates list ==========
+async function showTemplatesList() {
+  state.screen = 'templates';
+  show('Subject Templates', el('p', 'muted', 'Load ho raha hai...'));
+  let templates = [];
+  try { templates = await api.templates(); } catch {}
+  state.templates = templates;
+
+  const wrap = el('div', 'stack');
+  if (!templates.length) {
+    wrap.append(el('p', 'muted', 'Abhi koi template nahi. "New template" se banao.'));
+  } else {
+    templates.forEach((t) => {
+      const card = el('div', 'card tap');
+      card.append(el('h3', '', t.name));
+      const meta = el('div', 'chips');
+      meta.append(el('span', 'chip', t.timer_mode === 'subject' ? 'Subject timer' : `Total ${t.total_minutes || '?'} min`));
+      (t.subjects || []).forEach(s => meta.append(el('span', 'chip', `${s.name}: ${s.questions}Q`)));
+      card.append(meta);
+      card.addEventListener('click', () => { location.hash = `#/templates/${t.id}`; });
+      wrap.append(card);
+    });
+  }
+  const newBtn = el('button', 'btn wide', '+ New template');
+  newBtn.type = 'button';
+  newBtn.addEventListener('click', () => { location.hash = '#/templates/new'; });
+  wrap.append(newBtn);
+  show('Subject Templates', wrap);
+  backBtn.hidden = false;
+}
+
+// ========== Available tests (accordion) ==========
+async function showAvailableTests() {
+  state.screen = 'available';
+  show('Available Tests', el('p', 'muted', 'Load ho raha hai...'));
+  let tests = [];
+  try { tests = await api.tests(); } catch {}
+
+  const wrap = el('div', 'stack');
+
+  // Search bar
+  const searchBar = el('div', 'search-bar');
+  searchBar.append(el('span', '', '🔍'));
+  const searchInput = document.createElement('input');
+  searchInput.placeholder = 'Search tests...';
+  searchInput.type = 'text';
+  searchBar.append(searchInput);
+  wrap.append(searchBar);
+
+  const listWrap = el('div');
+  wrap.append(listWrap);
+
+  function renderList(filter) {
+    listWrap.replaceChildren();
+    const q = (filter || '').toLowerCase().trim();
+    const visible = tests.filter(t => !t.error && (!q || (t.name || '').toLowerCase().includes(q)));
+    if (!visible.length) {
+      listWrap.append(el('p', 'muted', tests.length ? 'Koi test is search se match nahi hua.' : 'Koi test nahi mila. Import karo.'));
+      return;
+    }
+    visible.forEach(t => listWrap.append(testAccordion(t)));
+  }
+  searchInput.addEventListener('input', () => renderList(searchInput.value));
+
+  function testAccordion(t) {
+    const card = el('div', 'test-card');
+    const head = el('div', 'test-card-head');
+    head.append(el('span', 'tc-icon', '📄'));
+    const main = el('div', 'tc-main');
+    main.append(el('h3', '', t.name));
+    const total = Object.values(t.subjects || {}).reduce((a, n) => a + n, 0);
+    const dateStr = t.created_at
+      ? new Date(t.created_at * 1000).toISOString().slice(0, 10)
+      : '—';
+    const meta = el('div', 'tc-meta');
+    meta.append(el('span', '', '📅 ' + dateStr));
+    meta.append(el('span', '', 'Total Q: ' + total));
+    main.append(meta);
+    head.append(main);
+    const toggle = el('span', 'tc-toggle', '▾');
+    head.append(toggle);
+    head.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      card.classList.toggle('open');
+    });
+    card.append(head);
+
+    const body = el('div', 'test-card-body');
+    const subs = el('div', 'tc-subjects');
+    Object.entries(t.subjects || {}).forEach(([sname, n]) => {
+      const row = el('div', 'tc-subj-row');
+      row.append(el('span', 'tc-subj-dot', '●'));
+      row.append(el('span', '', `${sname} : ${n} Questions`));
+      subs.append(row);
+    });
+    body.append(subs);
+
+    const actions = el('div', 'tc-actions');
+    const viewBtn = el('button', 'btn ghost', '👁 View');
+    viewBtn.type = 'button';
+    viewBtn.addEventListener('click', () => { location.hash = `#/preview/${t.id}`; });
+    const delBtn = el('button', 'btn ghost danger', '🗑 Delete');
+    delBtn.type = 'button';
+    delBtn.addEventListener('click', async () => {
+      if (!confirm(`"${t.name}" ko delete karna hai?`)) return;
+      try {
+        const r = await fetch('/api/tests/' + encodeURIComponent(t.id), { method: 'DELETE' });
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}));
+          throw new Error(d.error || ('HTTP ' + r.status));
+        }
+        showAvailableTests();
+      } catch (e) { alert('Delete fail: ' + e.message); }
+    });
+    actions.append(viewBtn, delBtn);
+    body.append(actions);
+    card.append(body);
+    return card;
+  }
+
+  renderList('');
+
+  // Import CTA
+  const importBtn = el('button', 'import-cta', '⬆ Import Test from JSON');
+  importBtn.type = 'button';
+  importBtn.addEventListener('click', () => { location.hash = '#/setup'; });
+  wrap.append(importBtn);
+
+  show('Available Tests', wrap);
+  backBtn.hidden = false;
+}
+
+// ========== Completed tests ==========
+async function showCompletedTests() {
+  state.screen = 'completed';
+  show('Completed Test', el('p', 'muted', 'Load ho raha hai...'));
+  let attempts = [];
+  try { attempts = await api.attempts(); } catch {}
+  const done = attempts.filter(a => a.status === 'submitted');
+
+  const wrap = el('div', 'stack');
+  if (!done.length) {
+    wrap.append(el('p', 'muted', 'Abhi koi test complete nahi hua.'));
+  } else {
+    done.forEach(a => {
+      const card = el('div', 'completed-card');
+      card.append(el('span', 'cc-icon', '✅'));
+      const main = el('div', 'cc-main');
+      main.append(el('h3', '', a.test_name || 'Test'));
+      const meta = el('div', 'cc-meta');
+      meta.append(el('span', '', a.template_name || '—'));
+      if (a.submitted_at) {
+        meta.append(el('span', '', new Date(a.submitted_at * 1000).toLocaleString()));
+      }
+      main.append(meta);
+      card.append(main);
+      if (typeof a.score === 'number') {
+        card.append(el('span', 'cc-score', `${a.score} / ${a.max}`));
+      }
+      card.addEventListener('click', () => { location.hash = `#/attempt/${a.id}`; });
+      wrap.append(card);
+    });
+  }
+  show('Completed Test', wrap);
+  backBtn.hidden = false;
+}
+
+// ========== Settings ==========
+async function showSettings() {
+  state.screen = 'settings';
+  show('Setting', el('p', 'muted', 'Load ho raha hai...'));
+  try { state.settings = await api.settings(); } catch { state.settings = { theme: 'system' }; }
+
+  const wrap = el('div', 'stack');
+  wrap.append(el('h2', 'section-title', 'Theme'));
+  const themes = [
+    ['system', 'System (auto)'],
+    ['light', 'Light'],
+    ['dark', 'Dark'],
+  ];
+  themes.forEach(([val, label]) => {
+    const card = el('div', 'card tap');
+    card.append(el('h3', '', label));
+    if (state.settings.theme === val) card.append(el('span', 'chip', '✓ Active'));
+    card.addEventListener('click', async () => {
+      state.settings.theme = val;
+      applyTheme(val);
+      try { await api.saveSettings(val); } catch (e) { alert('Save fail: ' + e.message); }
+      showSettings();
+    });
+    wrap.append(card);
+  });
+
+  show('Setting', wrap);
+  backBtn.hidden = false;
+}
+
 async function route() {
   // leaving test screen → flush
   if (state.screen === 'test' && !location.hash.startsWith('#/attempt/')) {
@@ -615,8 +824,12 @@ async function route() {
   const hash = location.hash || '#/home';
   const parts = hash.replace(/^#\//, '').split('/');
   if (parts[0] === 'templates' && parts[1]) return showBuilder(parts[1]);
+  if (parts[0] === 'templates') return showTemplatesList();
   if (parts[0] === 'preview' && parts[1]) return showPreview(parts[1]);
   if (parts[0] === 'setup') return showSetup();
+  if (parts[0] === 'available') return showAvailableTests();
+  if (parts[0] === 'completed') return showCompletedTests();
+  if (parts[0] === 'settings') return showSettings();
   if (parts[0] === 'attempt' && parts[1]) return showAttempt(parts[1]);
   return showHome();
 }

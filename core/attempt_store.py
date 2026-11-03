@@ -154,6 +154,48 @@ def _is_current_subject_allowed(attempt, subject, now):
     return None
 
 
+def _recycle_test(attempt):
+    """Delete original test JSON. If any questions were unanswered,
+    save them to a new <test_id>_unanswered.json for future use."""
+    test_id = attempt.get("test_id")
+    if not test_id:
+        return
+    test_path = config.TESTS_DIR / f"{test_id}.json"
+    if not test_path.exists():
+        return
+
+    unanswered = {}
+    for subj, qs in (attempt.get("questions") or {}).items():
+        resp = (attempt.get("responses") or {}).get(subj) or []
+        for i, q in enumerate(qs):
+            choice = resp[i].get("choice") if i < len(resp) else None
+            if choice is None:
+                unanswered.setdefault(subj, []).append(q)
+
+    try:
+        orig = read_json(test_path)
+        orig_name = orig.get("name", test_id)
+    except Exception:
+        orig_name = test_id
+
+    # Delete original
+    try:
+        test_path.unlink()
+    except OSError:
+        pass
+
+    if unanswered:
+        new_id_base = f"{test_id}_unanswered"
+        new_id = new_id_base
+        i = 2
+        while (config.TESTS_DIR / f"{new_id}.json").exists():
+            new_id = f"{new_id_base}_{i}"
+            i += 1
+        new_name = f"{orig_name} (Unanswered)"
+        doc = {"name": new_name, "subjects": unanswered}
+        write_json_atomic(config.TESTS_DIR / f"{new_id}.json", doc)
+
+
 def finalize(attempt, reason, now=None):
     """Compute result and mark submitted. Idempotent."""
     if attempt.get("status") == "submitted":
@@ -164,6 +206,8 @@ def finalize(attempt, reason, now=None):
     attempt["submitted_at"] = now
     attempt["submit_reason"] = reason
     attempt["result"] = scoring.compute(attempt)
+    # NEW: recycle unanswered questions
+    _recycle_test(attempt)
     return attempt
 
 

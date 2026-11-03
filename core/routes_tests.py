@@ -23,6 +23,21 @@ def get_test(test_id):
         return jsonify(error=err), code
     return jsonify(t)
 
+@bp.delete("/<test_id>")
+def delete_test(test_id):
+    import config
+    from core.test_loader import _path_for
+    p = _path_for(test_id)
+    if p is None:
+        return jsonify(error="Invalid test id"), 422
+    if not p.is_file():
+        return jsonify(error="Test nahi mila"), 404
+    try:
+        p.unlink()
+    except OSError as e:
+        return jsonify(error=f"Delete fail: {e}"), 500
+    return jsonify(ok=True)
+
 
 @bp.get("/<test_id>/validate")
 def validate(test_id):

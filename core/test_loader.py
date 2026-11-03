@@ -54,15 +54,20 @@ def list_tests():
         if p.name.startswith(".tmp_"):
             continue
         try:
+            mtime = p.stat().st_mtime
+        except OSError:
+            mtime = None
+        try:
             with open(p, encoding="utf-8") as f:
                 t = json.load(f)
             subjects = {name: len(qs) for name, qs in t.get("subjects", {}).items()}
-            out.append({"id": p.stem, "name": t.get("name", p.stem), "subjects": subjects})
+            out.append({"id": p.stem, "name": t.get("name", p.stem),
+                        "subjects": subjects, "created_at": mtime})
         except json.JSONDecodeError as e:
-            out.append({"id": p.stem, "name": p.stem,
+            out.append({"id": p.stem, "name": p.stem, "created_at": mtime,
                         "error": f"JSON kharab: line {e.lineno} col {e.colno}"})
         except (OSError, AttributeError, TypeError) as e:
-            out.append({"id": p.stem, "name": p.stem,
+            out.append({"id": p.stem, "name": p.stem, "created_at": mtime,
                         "error": f"File padh nahi paye: {e}"})
     return out
 
