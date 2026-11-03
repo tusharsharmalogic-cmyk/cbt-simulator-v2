@@ -633,10 +633,14 @@
 /* Fixed bottom CTA (available tests import) */
 .import-cta.fixed-bottom {
   position: fixed;
-  left: 12px;
-  right: 12px;
+  left: 16px;
+  right: 16px;
   bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   margin: 0;
+  padding: 12px 14px;
+  font-size: 15px;
+  width: auto;
+  box-sizing: border-box;
   z-index: 50;
   box-shadow: 0 6px 20px rgba(0,0,0,.35);
 }
