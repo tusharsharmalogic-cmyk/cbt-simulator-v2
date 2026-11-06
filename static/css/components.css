@@ -749,3 +749,33 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
   display: flex; flex-direction: column; gap: 12px;
 }
 .tpl-sheet h3 { margin: 0; font-size: 18px; }
+
+/* ---------- Result / math overflow fixes ---------- */
+.card, .result-row, .row-body { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.qtext, .solution, .otext, .ans-line {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.option { min-width: 0; }
+.option .otext { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+
+/* Inline MathJax too: allow horizontal scroll rather than blowing out the card */
+.qtext, .solution {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.qtext mjx-container, .solution mjx-container {
+  max-width: 100%;
+}
+mjx-container[display="true"] {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+
+/* Row header line (Turn · Sahi · Time) wrap on narrow screens */
+.row-head { flex-wrap: wrap; }
+.row-meta { min-width: 0; overflow-wrap: anywhere; }
