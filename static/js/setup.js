@@ -68,7 +68,7 @@ const setup = (() => {
       goodTemplates.forEach(t => {
         const o = document.createElement('option');
         o.value = t.id;
-        o.textContent = t.name + (t.timer_mode === 'subject' ? ' (subject timer)' : ` (${t.total_minutes} min)`);
+        o.textContent = t.name + ` (${t.total_minutes} min)`;
         if (s.templateId === t.id) o.selected = true;
         tSel.append(o);
       });

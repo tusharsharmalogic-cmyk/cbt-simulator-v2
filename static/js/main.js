@@ -109,11 +109,11 @@ async function showBuilder(id) {
     ed.errors = {};
     const body = {
       name: ed.name,
-      timer_mode: ed.timer_mode,
-      total_minutes: ed.timer_mode === 'total' ? ed.total_minutes : null,
+      timer_mode: 'total',
+      total_minutes: ed.total_minutes,
       subjects: ed.subjects.map(s => ({
         name: s.name, questions: s.questions, marks: s.marks, negative: s.negative,
-        minutes: ed.timer_mode === 'subject' ? s.minutes : null,
+        minutes: null,
         lock_mode: s.lock_mode || 'none',
         per_question_seconds: s.lock_mode === 'question' ? s.per_question_seconds : null,
         subject_minutes: s.lock_mode === 'subject' ? s.subject_minutes : null,
@@ -584,7 +584,7 @@ async function showTemplatesList() {
       const card = el('div', 'card tap');
       card.append(el('h3', '', t.name));
       const meta = el('div', 'chips');
-      meta.append(el('span', 'chip', t.timer_mode === 'subject' ? 'Subject timer' : `Total ${t.total_minutes || '?'} min`));
+      meta.append(el('span', 'chip', `Total ${t.total_minutes || '?'} min`));
       (t.subjects || []).forEach(s => meta.append(el('span', 'chip', `${s.name}: ${s.questions}Q`)));
       card.append(meta);
       card.addEventListener('click', () => { location.hash = `#/templates/${t.id}`; });

@@ -25,7 +25,7 @@ const builder = (() => {
     return {
       id: t.id || 'new',
       name: t.name || '',
-      timer_mode: t.timer_mode || 'total',
+      timer_mode: 'total',
       total_minutes: t.total_minutes || 180,
       subjects: (t.subjects || []).map(s => ({
         name: s.name,
@@ -47,12 +47,7 @@ const builder = (() => {
       q += Number(s.questions) || 0;
       m += (Number(s.questions) || 0) * (Number(s.marks) || 0);
     });
-    let t = 0;
-    if (ed.timer_mode === 'subject') {
-      t = ed.subjects.reduce((a, s) => a + (Number(s.minutes) || 0), 0);
-    } else {
-      t = Number(ed.total_minutes) || 0;
-    }
+    const t = Number(ed.total_minutes) || 0;
     return { totalQ: q, totalMarks: m, totalMin: t };
   }
 
@@ -106,32 +101,12 @@ const builder = (() => {
       textInput(ed.name, v => { ed.name = v; updateSummary(); }, { maxlength: 60 }),
       ed.errors.name));
 
-    // Timer mode toggle
-    const timerWrap = el('div', 'field');
-    timerWrap.append(el('span', 'field-label', 'Timer mode'));
-    const toggle = el('div', 'segmented');
-    ['total', 'subject'].forEach(m => {
-      const b = el('button', 'seg-btn' + (ed.timer_mode === m ? ' active' : ''),
-                   m === 'total' ? 'Total' : 'Subject-wise');
-      b.type = 'button';
-      b.addEventListener('click', () => {
-        ed.timer_mode = m;
-        opts.onStructure && opts.onStructure();
-      });
-      toggle.append(b);
-    });
-    timerWrap.append(toggle);
-    if (ed.errors.timer_mode) timerWrap.append(el('span', 'field-error', ed.errors.timer_mode));
-    root.append(timerWrap);
-
-    // Total minutes (total mode only)
-    if (ed.timer_mode === 'total') {
-      root.append(fieldRow('Total minutes',
-        numInput(ed.total_minutes,
-                 v => { ed.total_minutes = v === '' ? null : Number(v); updateSummary(); },
-                 { min: 1, step: 1, inputmode: 'numeric' }),
-        ed.errors.total_minutes));
-    }
+    // Total minutes (always visible — subject timer mode removed)
+    root.append(fieldRow('Total minutes',
+      numInput(ed.total_minutes,
+               v => { ed.total_minutes = v === '' ? null : Number(v); updateSummary(); },
+               { min: 1, step: 1, inputmode: 'numeric' }),
+      ed.errors.total_minutes));
 
     // Subjects
     root.append(el('h2', 'section-title', 'Subjects'));
@@ -232,12 +207,6 @@ const builder = (() => {
       numInput(s.negative,
                v => { s.negative = v === '' ? null : Number(v); },
                { min: 0, step: 0.25, inputmode: 'decimal' })));
-    if (ed.timer_mode === 'subject') {
-      grid.append(fieldRow('Minutes',
-        numInput(s.minutes,
-                 v => { s.minutes = v === '' ? null : Number(v); updateSummary(); },
-                 { min: 1, step: 1, inputmode: 'numeric' })));
-    }
     card.append(grid);
 
     if (subErr) card.append(el('div', 'field-error', subErr));
