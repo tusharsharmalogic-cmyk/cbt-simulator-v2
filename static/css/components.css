@@ -779,3 +779,27 @@ mjx-container[display="true"] {
 /* Row header line (Turn · Sahi · Time) wrap on narrow screens */
 .row-head { flex-wrap: wrap; }
 .row-meta { min-width: 0; overflow-wrap: anywhere; }
+
+/* ---------- Resume + Discard row ---------- */
+.resume-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+.resume-row .menu-btn.resume {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.menu-btn.discard-btn {
+  flex: 0 0 auto;
+  width: 56px;
+  padding: 0;
+  justify-content: center;
+  font-size: 22px;
+  background: var(--surface);
+  color: #c62828;
+  border: 1px solid #c62828;
+}
+.menu-btn.discard-btn:active { background: rgba(198, 40, 40, 0.15); }
+.menu-btn.discard-btn:disabled { opacity: .5; cursor: not-allowed; }

@@ -53,6 +53,8 @@ async function showHome() {
     let v = null;
     try { v = await api.attempt(ia.id); } catch { continue; }
     if (!v || v.status !== 'in_progress') continue;
+    const row = el('div', 'resume-row');
+
     const b = el('button', 'menu-btn resume');
     b.type = 'button';
     b.append(el('span', 'menu-icon', '▶'));
@@ -63,7 +65,28 @@ async function showHome() {
     lab.append(el('div', 'resume-sub', (v.test_name || 'Test') + rem));
     b.append(lab);
     b.addEventListener('click', () => { location.hash = `#/attempt/${ia.id}`; });
-    wrap.append(b);
+    row.append(b);
+
+    const del = el('button', 'menu-btn discard-btn');
+    del.type = 'button';
+    del.title = 'Discard this test';
+    del.setAttribute('aria-label', 'Discard test');
+    del.textContent = '🗑';
+    del.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm('Is resume test ko discard karna hai? Answers permanently delete ho jayenge.')) return;
+      del.disabled = true;
+      try {
+        await api.deleteAttempt(ia.id);
+        row.remove();
+      } catch (err) {
+        alert('Discard fail: ' + (err && err.message ? err.message : 'unknown'));
+        del.disabled = false;
+      }
+    });
+    row.append(del);
+
+    wrap.append(row);
   }
 
   const items = [
