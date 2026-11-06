@@ -1,0 +1,83 @@
+# AI Prompt — Book photos se CBT test JSON banane ke liye
+
+(Is poore text ko AI ko do, saath me apni book/notes ki photos attach karo.
+Neeche `[...]` wali jagah apne hisaab se badal lo.)
+
+---
+
+You are helping me build a multiple-choice test for my CBT simulator app. I will attach photos of pages from my book (questions, options, and sometimes diagrams). Read every question carefully and convert them into ONE valid JSON file in the exact format below.
+
+## Test details (edit these)
+
+- Test name: [e.g. IMU-CET Mock Test 1]
+- Subjects in this batch: [e.g. Physics, Chemistry, Maths]  (use these exact subject names as keys)
+- Language: keep the questions in the same language as the book.
+
+## Output rules
+
+1. Reply with ONLY the JSON. No explanation, no markdown fences, no text before or after it.
+2. If the output is too long, stop at a clean question boundary and I will ask you to continue. Never cut a question in half.
+3. The JSON must be 100% valid: double quotes only, no trailing commas, no comments.
+
+## JSON format
+
+```
+{
+  "name": "Test name",
+  "subjects": {
+    "Physics": [
+      {
+        "q": "Question text",
+        "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+        "answer": "B",
+        "solution": "Short explanation (optional but preferred)",
+        "svg": "<svg viewBox='0 0 100 60'>...</svg>"
+      }
+    ],
+    "Chemistry": [ ... ]
+  }
+}
+```
+
+Field rules:
+
+- `q` (required): the question text only. Do NOT write the question number ("Q1.", "1)") — the app adds it.
+- `options` (required): a list of 2 to 6 strings (normally 4). Do NOT write the letters ("A)", "(b)") inside options — the app adds them.
+- `answer` (required): ONE capital letter matching the position of the correct option: "A" = first option, "B" = second, and so on. Single-correct MCQ only. If the book gives an answer key, use it. If it does not, solve the question yourself carefully.
+- `solution` (optional): one or two lines explaining the answer.
+- `svg` (optional): only when the question has a diagram — see SVG rules.
+- Every subject in `subjects` is a list of question objects. Keep each subject's questions under that subject only.
+- Do not repeat the same question twice.
+- Skip a question if the photo is too blurry to read it with confidence. Do NOT guess or invent missing text, options or numbers.
+- Numerical-answer, multi-correct, match-the-column and assertion-reason questions: convert them into single-correct MCQ only if the book already gives options; otherwise skip them.
+
+## Maths, formulas and symbols (LaTeX)
+
+- Write every formula in LaTeX: inline between single dollars `$...$`, big/standalone formulas between double dollars `$$...$$`. This works in `q`, `options` and `solution`.
+- Inside JSON every backslash must be doubled. Write `\\frac{1}{2}`, `\\sin\\theta`, `\\int_0^1 x^2\\,dx`, `\\sqrt{x}`, `\\text{m/s}`. A single backslash will break the JSON.
+- Use LaTeX for powers, subscripts, Greek letters, vectors, units and chemical formulas too: `$x^2$`, `$v_0$`, `$\\alpha$`, `$\\vec{F}$`, `$\\mathrm{H_2SO_4}$`.
+- A literal dollar sign (currency) must be written as `\\$`.
+- Line breaks inside text: use `\n` (never a real new line inside a string).
+
+## Diagrams (SVG)
+
+- Diagrams go ONLY in the `svg` field of that question, as one inline SVG string. No image files, no .jpg/.png, no URLs, no base64.
+- The root must be `<svg viewBox='0 0 W H'>` — `viewBox` is mandatory. Do not set `width` or `height`.
+- Use single quotes for all attributes inside the SVG (so the JSON needs no extra escaping).
+- Allowed: `line`, `polyline`, `polygon`, `rect`, `circle`, `ellipse`, `path`, `text`, `g`, `defs`, `marker`. Not allowed: `script`, `foreignObject`, `image`, event attributes (onclick etc.), external links.
+- Colours: use `currentColor` for strokes and text (and `none` or `currentColor` for fills) so the diagram works in both light and dark theme. Use `stroke-width='2'` for main lines and `font-size='12'` for labels.
+- Keep it clean and simple: the same labels, values and proportions as the book. Do not add anything that is not in the original diagram.
+- If a diagram is too complex to redraw faithfully, skip that question.
+- Options that are diagrams are not supported; skip such questions.
+
+## Example (valid, copy this style)
+
+{"name":"Sample Test","subjects":{"Maths":[{"q":"Evaluate: $$\\int_0^1 x^2\\,dx$$","options":["$\\frac{1}{2}$","$\\frac{1}{3}$","$\\frac{1}{4}$","$1$"],"answer":"B","solution":"$\\left[\\frac{x^3}{3}\\right]_0^1=\\frac{1}{3}$"},{"q":"A triangle has sides $3, 4, 5$. Find its area.","svg":"<svg viewBox='0 0 120 100'><polygon points='10,80 110,80 10,20' fill='none' stroke='currentColor' stroke-width='2'/><text x='55' y='95' font-size='12' fill='currentColor'>4</text><text x='0' y='55' font-size='12' fill='currentColor'>3</text><text x='65' y='45' font-size='12' fill='currentColor'>5</text></svg>","options":["$6$","$12$","$10$","$8$"],"answer":"A","solution":"Right triangle: area $=\\frac{1}{2}\\times3\\times4=6$"}],"Physics":[{"q":"SI unit of force?","options":["Joule","Newton","Watt","Pascal"],"answer":"B"}]}}
+
+## Before you reply, check
+
+- JSON is valid and every backslash is doubled.
+- Every `answer` is one capital letter within the number of options.
+- No question numbers or option letters inside `q` / `options`.
+- Subject names match the list I gave.
+- Only the JSON is in the reply.

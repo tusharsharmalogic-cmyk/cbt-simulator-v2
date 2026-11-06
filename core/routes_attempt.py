@@ -62,17 +62,40 @@ def delete_attempt(aid):
 def create():
     body = request.get_json(silent=True) or {}
     template_id = body.get("template_id")
-    test_id = body.get("test_id")
-    if not template_id or not test_id:
-        return jsonify(error="template_id aur test_id dono chahiye"), 422
+    test_ids = body.get("test_ids")
+    if not test_ids and body.get("test_id"):
+        test_ids = [body.get("test_id")]
+    if (not isinstance(test_ids, list) or not test_ids
+            or not all(isinstance(t, str) for t in test_ids)):
+        test_ids = None
+    if not template_id or not test_ids:
+        return jsonify(error="template_id aur kam se kam ek test chahiye"), 422
+    test_ids = list(dict.fromkeys(test_ids))  # duplicates hatao, order rakho
 
     template = template_store.get_template(template_id)
     if template is None:
         return jsonify(error="Template nahi mila"), 404
 
-    test, t_err = test_loader.load_test_safe(test_id)
-    if t_err:
-        return jsonify(error=t_err), 422
+    # Saare chune hue tests load karo; subject-wise questions merge honge.
+    tests = []
+    for tid in test_ids:
+        t, t_err = test_loader.load_test_safe(tid)
+        if t_err:
+            return jsonify(error=f"{tid}: {t_err}"), 422
+        tests.append(t)
+    if len(tests) == 1:
+        test = tests[0]
+    else:
+        merged = {}
+        for t in tests:
+            for subj, qs in (t.get("subjects") or {}).items():
+                if isinstance(qs, list):
+                    merged.setdefault(subj, []).extend(qs)
+                else:
+                    merged.setdefault(subj, qs)  # validate_test error dega
+        test = {"name": " + ".join(str(t.get("name", tid)) for t, tid in zip(tests, test_ids)),
+                "subjects": merged}
+    test_id = test_ids[0]
 
     # strict_counts=False: fewer-than-needed allowed; 0-Q subjects skip ho jayenge.
     # Sirf real errors (bad JSON, missing answer, etc.) block karte hain.
@@ -88,7 +111,7 @@ def create():
     if not has_any:
         return jsonify(error="Koi bhi subject me valid question nahi mila"), 422
 
-    a = attempt_store.create_attempt(template, test, test_id)
+    a = attempt_store.create_attempt(template, test, test_id, test_ids)
     return jsonify(attempt_store.client_view(a, strip_answers=True))
 
 

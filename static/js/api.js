@@ -35,7 +35,7 @@ const api = {
   importTests: async (files, templateId, name) => {
     const fd = new FormData();
     files.forEach(f => fd.append('files[]', f, f.name));
-    fd.append('template_id', templateId);
+    if (templateId) fd.append('template_id', templateId);
     if (name) fd.append('name', name);
     const r = await fetch('/api/tests/import', { method: 'POST', body: fd });
     const data = await r.json().catch(() => ({}));
@@ -49,6 +49,10 @@ const api = {
     return data;
   },
 
+  prompt: (key) => api.get('/api/prompt/' + encodeURIComponent(key)),
+  savePrompt: (key, text) => api.put('/api/prompt/' + encodeURIComponent(key), { text }),
+  resetPrompt: (key) => api.del('/api/prompt/' + encodeURIComponent(key)),
+
   settings: () => api.get('/api/settings'),
   saveSettings: (theme) => api.put('/api/settings', { theme }),
 
@@ -59,7 +63,10 @@ const api = {
 
   attempts: () => api.get('/api/attempts'),
   attempt: (id) => api.get('/api/attempts/' + encodeURIComponent(id)),
-  createAttempt: (template_id, test_id) => api.post('/api/attempts', { template_id, test_id }),
+  createAttempt: (template_id, test_ids) => api.post('/api/attempts', {
+    template_id,
+    test_ids: Array.isArray(test_ids) ? test_ids : [test_ids],
+  }),
   deleteAttempt: (id) => api.del('/api/attempts/' + encodeURIComponent(id)),
   answer: (id, subject, index, choice) =>
     api.post(`/api/attempts/${encodeURIComponent(id)}/answer`, { subject, index, choice }),

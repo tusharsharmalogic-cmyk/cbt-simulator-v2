@@ -53,12 +53,35 @@ def _basic_check(q):
     return None
 
 
-def import_files(files, template):
+def _derive_template(files):
+    """Template nahi diya -> files me jitne subjects hain sab, bina cap ke."""
+    names, doc_name = [], None
+    for fname, raw in files:
+        try:
+            doc = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        items = doc if isinstance(doc, list) else [doc]
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            if doc_name is None and isinstance(it.get("name"), str) and it.get("subjects"):
+                doc_name = it["name"].strip() or None
+            sm = it["subjects"] if isinstance(it.get("subjects"), dict) else it
+            for k in sm:
+                if k != "name" and k not in names:
+                    names.append(k)
+    return {"name": doc_name, "subjects": [{"name": n, "questions": 10**6} for n in names]}
+
+
+def import_files(files, template=None):
     """files: list of (filename, bytes) tuples.
     template: full template dict (already validated).
     Returns dict: {test_id, name, counts:{subject:N}, used:{subject:N},
                    needed:{subject:N}, skipped: {file: [msgs]}, total, errors:[..]}
     """
+    if template is None:
+        template = _derive_template(files)
     # template subjects map (ci) -> {name, questions}
     tmpl = {}
     order = []

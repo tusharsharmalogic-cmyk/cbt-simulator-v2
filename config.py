@@ -8,6 +8,11 @@ TEMPLATES_DIR = DATA_DIR / "templates"   # exam patterns (step 2)
 TESTS_DIR = DATA_DIR / "tests"           # ek test = ek .json file
 ATTEMPTS_DIR = DATA_DIR / "attempts"     # ek attempt = ek .json file (step 5)
 SETTINGS_FILE = DATA_DIR / "settings.json"
+# AI prompts: key -> (default file in repo, user ka edited copy in data/)
+PROMPTS = {
+    "photos": (BASE_DIR / "AI_PROMPT.md", DATA_DIR / "AI_PROMPT.md"),
+    "generate": (BASE_DIR / "AI_PROMPT_GENERATE.md", DATA_DIR / "AI_PROMPT_GENERATE.md"),
+}
 
 # Default sirf phone ke liye (localhost). LAN pe kholna ho: python app.py --host 0.0.0.0
 HOST = "127.0.0.1"

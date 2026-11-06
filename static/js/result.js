@@ -92,7 +92,7 @@ const resultScreen = (() => {
     refreshRows();
 
     // ---- Back button ----
-    const back = el('button', 'btn wide', '← Home');
+    const back = el('button', 'btn wide', 'Home');
     back.type = 'button';
     back.addEventListener('click', () => { location.hash = '#/home'; });
     root.append(back);

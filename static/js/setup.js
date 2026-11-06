@@ -14,7 +14,7 @@ const setup = (() => {
       templates,
       tests,
       templateId: firstT ? firstT.id : null,
-      testId: null,
+      testIds: [],
       testName: '',
       // import state
       files: [],
@@ -27,12 +27,12 @@ const setup = (() => {
 
   function computeDetails(s) {
     const t = s.templates.find(x => x.id === s.templateId);
-    const test = s.tests.find(x => x.id === s.testId);
-    if (!t || !test) return [];
+    const picked = s.tests.filter(x => (s.testIds || []).includes(x.id));
+    if (!t || !picked.length) return [];
     const rows = [];
     (t.subjects || []).forEach(sub => {
       const need = Number(sub.questions) || 0;
-      const have = Number((test.subjects || {})[sub.name] || 0);
+      const have = picked.reduce((n, test) => n + Number((test.subjects || {})[sub.name] || 0), 0);
       // Only show subjects that have at least 1 question in the test
       if (have <= 0) return;
       rows.push({
@@ -77,32 +77,28 @@ const setup = (() => {
     tField.append(tSel);
     root.append(tField);
 
-    // 2. Test
-    const testField = el('label', 'field');
-    testField.append(el('span', 'field-label', '📝 Choose Test'));
-    const testSel = document.createElement('select');
-    testSel.className = 'input';
+    // 2. Test (multi-select: checkbox list)
+    const testField = el('div', 'field');
+    const picked0 = (s.testIds || []).length;
+    testField.append(el('span', 'field-label',
+      '📝 Choose Test' + (picked0 ? ` (${picked0} selected)` : '')));
     const goodTests = s.tests.filter(t => !t.error);
     if (!goodTests.length) {
-      const o = document.createElement('option');
-      o.value = ''; o.textContent = '(koi test nahi — import karo)';
-      testSel.append(o); testSel.disabled = true;
+      testField.append(el('div', 'muted', '(koi test nahi — import karo)'));
     } else {
-      const ph = document.createElement('option');
-      ph.value = ''; ph.textContent = '— Test chuno —';
-      if (!s.testId) ph.selected = true;
-      testSel.append(ph);
+      const list = el('div', 'test-pick-list');
       goodTests.forEach(t => {
         const total = Object.values(t.subjects || {}).reduce((a, n) => a + n, 0);
-        const o = document.createElement('option');
-        o.value = t.id;
-        o.textContent = `${t.name} (${total} Q)`;
-        if (s.testId === t.id) o.selected = true;
-        testSel.append(o);
+        const row = el('label', 'test-pick-row');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = s.testIds.includes(t.id);
+        cb.addEventListener('change', () => opts.onTestToggle(t.id));
+        row.append(cb, el('span', 'test-pick-name', `${t.name} (${total} Q)`));
+        list.append(row);
       });
+      testField.append(list);
     }
-    testSel.addEventListener('change', () => opts.onTestChange(testSel.value));
-    testField.append(testSel);
     root.append(testField);
 
     // 3. Test Name
@@ -111,16 +107,15 @@ const setup = (() => {
     const nameInp = document.createElement('input');
     nameInp.type = 'text';
     nameInp.className = 'input';
-    const curTest = goodTests.find(t => t.id === s.testId);
-    nameInp.value = s.testName || (curTest ? curTest.name : '');
+    nameInp.value = s.testName || '';
     nameInp.placeholder = 'e.g. IMU-CET Mock Test 1';
     nameInp.maxLength = 60;
     nameInp.addEventListener('input', () => opts.onNameChange(nameInp.value));
     nameField.append(nameInp);
     root.append(nameField);
 
-    // 4. Test Details (progress bars) — only when a test is selected
-    const details = s.testId ? computeDetails(s) : [];
+    // 4. Test Details (progress bars) — only when test(s) selected (counts summed)
+    const details = s.testIds.length ? computeDetails(s) : [];
     if (details.length) {
       const detCard = el('div', 'card');
       detCard.append(el('h3', '', '📊 Test Details'));
@@ -205,7 +200,7 @@ const setup = (() => {
     const startBtn = el('button', 'btn wide', '▶ Start Test');
     startBtn.type = 'button';
     startBtn.classList.add('start-btn');
-    const canStart = !!(s.templateId && s.testId);
+    const canStart = !!(s.templateId && s.testIds.length);
     startBtn.disabled = !canStart;
     if (canStart) {
       // green

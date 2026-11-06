@@ -126,21 +126,7 @@ const testScreen = (() => {
     timerBar.append(rightSide);
     root.append(timerBar);
 
-    // Subject tabs
-    const tabs = el('div', 'subject-tabs');
-    subjectsOf(a).forEach(subj => {
-      const lk = locked.has(subj);
-      const cls = 'subj-tab' + (subj === a.current.subject ? ' active' : '') + (lk ? ' locked' : '');
-      const b = el('button', cls, subj + (lk ? ' 🔒' : ''));
-      b.type = 'button';
-      b.disabled = lk;
-      b.addEventListener('click', () => {
-        if (lk || subj === a.current.subject) return;
-        opts.onSubjectTab && opts.onSubjectTab(subj);
-      });
-      tabs.append(b);
-    });
-    root.append(tabs);
+    // Subject chips ab palette ke andar hain (palette.js).
 
     // Question
     const subj = a.current.subject;

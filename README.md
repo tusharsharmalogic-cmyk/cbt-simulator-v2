@@ -18,7 +18,7 @@ Open http://127.0.0.1:8080 on phone browser.
 - [x] Step 4 — Test screen (UI)
 - [x] Step 5 — Server-side attempts + timer + submit
 - [x] Step 6 — Scoring + Result
-- [ ] Step 7 — AI_PROMPT.md
+- [x] Step 7 — AI_PROMPT.md (Setting > AI Prompt: view / edit / copy)
 
 ## Layout
 

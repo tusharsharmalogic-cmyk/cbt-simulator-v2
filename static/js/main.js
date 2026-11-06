@@ -7,6 +7,7 @@ const titleEl = document.getElementById('title');
 const themeBtn = document.getElementById('theme-toggle');
 
 function show(title, ...nodes) {
+  document.body.classList.remove('in-test');
   titleEl.textContent = title;
   app.replaceChildren(...nodes);
   backBtn.hidden = (state.screen === 'home' || state.screen === 'test');
@@ -46,6 +47,25 @@ async function showHome() {
   try { attempts = await api.attempts(); } catch {}
   const inprog = attempts.filter(a => a.status === 'in_progress');
 
+  // Resume buttons: chalte test(s) seedhe wahin se khulte hain.
+  // GET attempt server pe time-up check bhi karta hai; submitted nikle to skip.
+  for (const ia of inprog.slice(0, 3)) {
+    let v = null;
+    try { v = await api.attempt(ia.id); } catch { continue; }
+    if (!v || v.status !== 'in_progress') continue;
+    const b = el('button', 'menu-btn resume');
+    b.type = 'button';
+    b.append(el('span', 'menu-icon', '▶'));
+    const lab = el('span', 'menu-label');
+    lab.append(el('div', '', 'Resume Test'));
+    const rem = v.timing && typeof v.timing.remaining_seconds === 'number'
+      ? '  •  ⏱ ' + testScreen.formatTime(v.timing.remaining_seconds) + ' bacha' : '';
+    lab.append(el('div', 'resume-sub', (v.test_name || 'Test') + rem));
+    b.append(lab);
+    b.addEventListener('click', () => { location.hash = `#/attempt/${ia.id}`; });
+    wrap.append(b);
+  }
+
   const items = [
     { icon: '▶', label: 'Start New Test', primary: true, hash: '#/setup' },
     { icon: '📋', label: 'Available Test', hash: '#/available' },
@@ -58,9 +78,6 @@ async function showHome() {
     b.type = 'button';
     b.append(el('span', 'menu-icon', it.icon));
     b.append(el('span', 'menu-label', it.label));
-    if (it.hash === '#/setup' && inprog.length) {
-      b.append(el('span', 'chip', 'Resume'));
-    }
     b.addEventListener('click', () => { location.hash = it.hash; });
     wrap.append(b);
   });
@@ -131,16 +148,22 @@ async function showSetup() {
   try { templates = await api.templates(); } catch {}
   try { tests = await api.tests(); } catch {}
   const s = setup.initialState(templates, tests);
+  if (state._pendingFiles && state._pendingFiles.length) {
+    s.files = state._pendingFiles;
+    s.showImport = true;
+    state._pendingFiles = null;
+  }
 
   const opts = {
     onTemplateChange: (id) => {
       s.templateId = id;
       rerender();
     },
-    onTestChange: (id) => {
-      s.testId = id;
-      const t = s.tests.find(x => x.id === id);
-      if (t) s.testName = t.name;
+    onTestToggle: (id) => {
+      const i = s.testIds.indexOf(id);
+      if (i >= 0) s.testIds.splice(i, 1); else s.testIds.push(id);
+      const picked = s.tests.filter(x => s.testIds.includes(x.id));
+      s.testName = picked.map(x => x.name).join(' + ');
       rerender();
     },
     onNameChange: (name) => { s.testName = name; },
@@ -170,7 +193,7 @@ async function showSetup() {
       s.imported = res;
       // refresh tests + select newly imported
       try { s.tests = await api.tests(); } catch {}
-      s.testId = res.test_id;
+      s.testIds = [res.test_id];
       s.testName = res.test_name;
       s.showImport = false;
     } catch (e) {
@@ -182,9 +205,9 @@ async function showSetup() {
   }
 
   async function start() {
-    if (!s.templateId || !s.testId) { alert('Template aur Test dono chuno'); return; }
+    if (!s.templateId || !s.testIds.length) { alert('Template aur kam se kam ek Test chuno'); return; }
     try {
-      const a = await api.createAttempt(s.templateId, s.testId);
+      const a = await api.createAttempt(s.templateId, s.testIds);
       location.hash = `#/attempt/${a.id}`;
     } catch (e) {
       alert('Start fail: ' + e.message);
@@ -326,8 +349,7 @@ async function showAttempt(id) {
   if (state.attempt.status === 'submitted') {
     // Step 6: full result screen
     stopTicker(); stopSync();
-    titleEl.textContent = 'Result';
-    backBtn.hidden = false;
+    state.screen = 'result';
     show('Result', resultScreen.render(state.attempt, {}));
     return;
   }
@@ -395,7 +417,7 @@ function startTicker() {
     if (t <= 0 && !testCtl.submitting) {
       testCtl.submitting = true;
       refreshAttempt().finally(() => {
-        if (state.attempt && state.attempt.status === 'submitted') location.hash = `#/attempt/${testCtl.attemptId}`;
+        if (state.attempt && state.attempt.status === 'submitted') showAttempt(testCtl.attemptId);
       });
     }
   }, 500);
@@ -420,7 +442,7 @@ function renderTest() {
   const a = state.attempt;
   if (!a || a.status !== 'in_progress') {
     if (a && a.status === 'submitted') {
-      titleEl.textContent = 'Result';
+      state.screen = 'result';
       show('Result', resultScreen.render(a, {}));
     }
     return;
@@ -440,6 +462,7 @@ function renderTest() {
     },
   });
   app.replaceChildren(root);
+  document.body.classList.add('in-test');   // top header hide (CSS)
   titleEl.textContent = a.test_name || 'Test';
   backBtn.hidden = true;
   typeset(app);
@@ -499,7 +522,7 @@ function openSubmitConfirm() {
       state.attempt = r;
       sheet.remove();
       stopTicker(); stopSync();
-      location.hash = `#/attempt/${a.id}`;
+      showAttempt(a.id);
     } catch (e) {
       alert('Submit fail: ' + e.message);
       submit.disabled = false;
@@ -592,7 +615,9 @@ async function showAvailableTests() {
   searchInput.placeholder = 'Search tests...';
   searchInput.type = 'text';
   searchBar.append(searchInput);
-  wrap.append(searchBar);
+  const topRow = el('div', 'avail-top');
+  topRow.append(searchBar);
+  wrap.append(topRow);
 
   // Scrollable list
   const listWrap = el('div', 'available-list');
@@ -668,15 +693,34 @@ async function showAvailableTests() {
 
   renderList('');
 
-  // Fixed bottom CTA (list has bottom padding via CSS)
-  const importBtn = el('button', 'import-cta fixed-bottom', '⬆ Import Test from JSON');
+  // Import button: search bar ke right me; seedha file manager, direct save
+  const importBtn = el('button', 'import-mini', '');
   importBtn.type = 'button';
-  importBtn.addEventListener('click', () => { location.hash = '#/setup'; });
-  document.body.append(importBtn);
-  if (state._availCta && state._availCta !== importBtn && state._availCta.parentNode) {
-    state._availCta.remove();
-  }
-  state._availCta = importBtn;
+  importBtn.append(el('span', 'import-cta-ico', '⬆'), el('span', 'import-cta-txt', 'Import'));
+  const picker = document.createElement('input');
+  picker.type = 'file';
+  picker.accept = '.json,application/json';
+  picker.multiple = true;
+  picker.hidden = true;
+  picker.addEventListener('change', async () => {
+    const files = Array.from(picker.files || []);
+    picker.value = '';
+    if (!files.length) return;
+    importBtn.disabled = true;
+    importBtn.querySelector('.import-cta-txt').textContent = '...';
+    try {
+      await api.importTests(files, null, '');
+    } catch (e) {
+      let msg = e.message || 'Import fail';
+      if (e.skipped) Object.entries(e.skipped).forEach(([f, m]) => { msg += `\n${f}: ${[].concat(m).join(', ')}`; });
+      alert('Import fail: ' + msg);
+    }
+    showAvailableTests();
+  });
+  importBtn.addEventListener('click', () => picker.click());
+  importBtn.append(picker);
+  topRow.append(importBtn);
+  state._availCta = null;
 
   show('Available Tests', wrap);
   backBtn.hidden = false;
@@ -753,7 +797,96 @@ async function showSettings() {
     wrap.append(card);
   });
 
+  wrap.append(el('h2', 'section-title', 'AI Prompt'));
+  [
+    ['photos', '🤖 AI Prompt 1 — Photos se', 'Book ki photos attach karke test JSON banwane ka prompt.'],
+    ['generate', '✨ AI Prompt 2 — Bina photo ke', 'Photo ke bina AI se naye questions banwane ka prompt (same JSON format).'],
+  ].forEach(([key, title, sub]) => {
+    const pCard = el('div', 'card tap');
+    pCard.append(el('h3', '', title));
+    pCard.append(el('div', 'muted small', sub));
+    pCard.addEventListener('click', () => { location.hash = '#/prompt/' + key; });
+    wrap.append(pCard);
+  });
+
   show('Setting', wrap);
+  backBtn.hidden = false;
+}
+
+// ========== AI Prompt (view / edit / copy) ==========
+async function showPrompt(key) {
+  key = key === 'generate' ? 'generate' : 'photos';
+  const ptitle = key === 'generate' ? 'AI Prompt 2 (bina photo)' : 'AI Prompt 1 (photos se)';
+  state.screen = 'prompt';
+  show(ptitle, el('p', 'muted', 'Load ho raha hai...'));
+  let data;
+  try { data = await api.prompt(key); }
+  catch (e) { show(ptitle, el('p', 'error', e.message)); backBtn.hidden = false; return; }
+
+  const wrap = el('div', 'stack prompt-screen');
+  const baseLabel = () => (curEdited ? 'Tumhara edited version (server pe saved)' : 'Default prompt');
+  let curEdited = data.edited;
+  let savedText = data.text;
+  const status = el('div', 'muted small', baseLabel());
+  wrap.append(status);
+  wrap.append(el('div', 'muted small', '✏ Neeche text me seedha edit karo, phir 💾 Save dabao. Save server pe hota hai (data/ folder), isliye reload ya server restart ke baad bhi rahega.'));
+
+  const ta = document.createElement('textarea');
+  ta.className = 'input prompt-area';
+  ta.spellcheck = false;
+  ta.value = data.text;   // textarea.value = plain text, innerHTML nahi
+  wrap.append(ta);
+  const refreshStatus = () => {
+    status.textContent = ta.value !== savedText ? '● Unsaved changes — Save dabao' : baseLabel();
+  };
+  ta.addEventListener('input', refreshStatus);
+
+  const msg = el('div', 'muted small', '');
+  const flash = (t) => { msg.textContent = t; };
+
+  const row = el('div', 'actions-row');
+  const copyBtn = el('button', 'btn', '📋 Copy');
+  copyBtn.type = 'button';
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(ta.value);
+      flash('✓ Copy ho gaya');
+    } catch {
+      ta.focus(); ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch {}
+      flash(ok ? '✓ Copy ho gaya' : 'Auto-copy nahi hua — text select hai, long-press karke copy karo');
+    }
+  });
+  const saveBtn = el('button', 'btn ghost', '💾 Save');
+  saveBtn.type = 'button';
+  saveBtn.addEventListener('click', async () => {
+    try {
+      const r = await api.savePrompt(key, ta.value);
+      curEdited = r.edited; savedText = r.text;
+      refreshStatus();
+      flash('✓ Server pe save ho gaya');
+    } catch (e) { flash('Save fail: ' + e.message); }
+  });
+  row.append(copyBtn, saveBtn);
+  wrap.append(row);
+
+  const resetBtn = el('button', 'btn ghost wide', '↺ Default pe wapas');
+  resetBtn.type = 'button';
+  resetBtn.addEventListener('click', async () => {
+    if (!confirm('Tumhara edited prompt hat jayega aur default wapas aayega. Pakka?')) return;
+    try {
+      const r = await api.resetPrompt(key);
+      ta.value = r.text;
+      curEdited = r.edited; savedText = r.text;
+      refreshStatus();
+      flash('✓ Default wapas aa gaya');
+    } catch (e) { flash('Reset fail: ' + e.message); }
+  });
+  wrap.append(resetBtn);
+  wrap.append(msg);
+
+  show(ptitle, wrap);
   backBtn.hidden = false;
 }
 
@@ -779,11 +912,12 @@ async function route() {
   if (parts[0] === 'available') return showAvailableTests();
   if (parts[0] === 'completed') return showCompletedTests();
   if (parts[0] === 'settings') return showSettings();
+  if (parts[0] === 'prompt') return showPrompt(parts[1]);
   if (parts[0] === 'attempt' && parts[1]) return showAttempt(parts[1]);
   return showHome();
 }
 
-backBtn.addEventListener('click', () => { location.hash = '#/home'; });
+backBtn.addEventListener('click', () => { location.hash = state.screen === 'prompt' ? '#/settings' : '#/home'; });
 if (themeBtn) themeBtn.addEventListener('click', cycleTheme);
 window.addEventListener('hashchange', route);
 

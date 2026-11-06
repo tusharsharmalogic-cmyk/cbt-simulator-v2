@@ -73,7 +73,7 @@ def list_attempts():
 
 # ---------- create ----------
 
-def create_attempt(template, test, test_id):
+def create_attempt(template, test, test_id, test_ids=None):
     """template: full template dict (already validated).
     test: full test dict.
     test_id: source test id (for trace)."""
@@ -118,6 +118,7 @@ def create_attempt(template, test, test_id):
         "start_time": now,
         "template": tpl,
         "test_id": test_id,
+        "test_ids": list(test_ids) if test_ids else [test_id],
         "test_name": test.get("name", test_id),
         "questions": questions,
         "responses": responses,
@@ -155,13 +156,17 @@ def _is_current_subject_allowed(attempt, subject, now):
 
 
 def _recycle_test(attempt):
-    """Delete original test JSON. If any questions were unanswered,
-    save them to a new <test_id>_unanswered.json for future use."""
+    """Delete original test JSON(s). If any questions were unanswered,
+    save them to a new <test_id>_unanswered.json for future use.
+    Multi-test attempt me saare source tests delete hote hain aur ek hi
+    merged unanswered test banta hai."""
     test_id = attempt.get("test_id")
     if not test_id:
         return
-    test_path = config.TESTS_DIR / f"{test_id}.json"
-    if not test_path.exists():
+    ids = attempt.get("test_ids") or [test_id]
+    paths = [config.TESTS_DIR / f"{tid}.json" for tid in ids]
+    paths = [p for p in paths if p.exists()]
+    if not paths:
         return
 
     unanswered = {}
@@ -172,17 +177,20 @@ def _recycle_test(attempt):
             if choice is None:
                 unanswered.setdefault(subj, []).append(q)
 
-    try:
-        orig = read_json(test_path)
-        orig_name = orig.get("name", test_id)
-    except Exception:
-        orig_name = test_id
+    names = []
+    for p in paths:
+        try:
+            names.append(read_json(p).get("name", p.stem))
+        except Exception:
+            names.append(p.stem)
+    orig_name = " + ".join(names) if len(names) > 1 else names[0]
 
-    # Delete original
-    try:
-        test_path.unlink()
-    except OSError:
-        pass
+    # Delete originals
+    for p in paths:
+        try:
+            p.unlink()
+        except OSError:
+            pass
 
     if unanswered:
         new_id_base = f"{test_id}_unanswered"

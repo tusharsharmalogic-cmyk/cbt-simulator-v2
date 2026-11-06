@@ -67,16 +67,16 @@ def import_tests():
     custom_name = (request.form.get("name") or "").strip()
     uploads = request.files.getlist("files[]") or request.files.getlist("files")
 
-    if not template_id:
-        return jsonify(error="template_id chahiye"), 422
     if not uploads:
         return jsonify(error="Koi .json file select nahi ki"), 422
     if len(uploads) > _MAX_FILES:
         return jsonify(error=f"Max {_MAX_FILES} files ek baar me"), 422
 
-    template = template_store.get_template(template_id)
-    if template is None:
-        return jsonify(error="Template nahi mila"), 404
+    template = None
+    if template_id:
+        template = template_store.get_template(template_id)
+        if template is None:
+            return jsonify(error="Template nahi mila"), 404
 
     files = []
     rejected_names = []
@@ -94,12 +94,19 @@ def import_tests():
     if not files:
         return jsonify(error="Sirf .json files allowed", rejected=rejected_names), 422
 
+    derived = template is None
     result = importer.import_files(files, template)
+    if template is None:
+        template = {"name": importer._derive_template(files).get("name")
+                    or files[0][0].rsplit(".", 1)[0]}
     if result["errors"]:
         return jsonify(errors=result["errors"], skipped=result.get("skipped", {}),
                        counts=result.get("counts", {}), needed=result.get("needed", {})), 422
 
-    default_name = f"{(template.get('name') or 'Imported')} — {time_str()}"
+    if derived:
+        default_name = template.get("name") or "Imported"
+    else:
+        default_name = f"{(template.get('name') or 'Imported')} — {time_str()}"
     final_name = custom_name or default_name
     test_id, saved_name = importer.save_imported_test(result["subjects"], final_name)
 
