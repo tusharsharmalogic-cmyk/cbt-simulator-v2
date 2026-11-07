@@ -320,20 +320,39 @@ def apply_mark(attempt, subject, index, marked):
     return attempt
 
 
+def valid_slot(attempt, subject, index):
+    """True if (subject, index) is a real response slot in this attempt."""
+    if not isinstance(subject, str) or isinstance(index, bool) or not isinstance(index, int):
+        return False
+    rs = (attempt.get("responses") or {}).get(subject)
+    return isinstance(rs, list) and 0 <= index < len(rs)
+
+
+def add_time_spent(attempt, subject, index, spent):
+    """Add clamped seconds to one question's time_spent. Returns seconds added.
+
+    Time belongs to the question the student was on, even if that question has
+    just locked, so this must stay callable for locked slots.
+    """
+    try:
+        spent = float(spent or 0)
+    except (TypeError, ValueError):
+        spent = 0.0
+    spent = max(0.0, min(600.0, spent))
+    if not spent or not valid_slot(attempt, subject, index):
+        return 0.0
+    rs = attempt["responses"][subject]
+    rs[index]["time_spent"] = float(rs[index].get("time_spent") or 0) + spent
+    return spent
+
+
 def apply_visit(attempt, subject, index, spent):
     if not _subject_in_template(attempt, subject):
         raise ValueError("subject not found")
     rs = attempt["responses"].get(subject) or []
     if not (0 <= index < len(rs)):
         raise ValueError("index out of range")
-    # clamp
-    try:
-        spent = float(spent or 0)
-    except (TypeError, ValueError):
-        spent = 0
-    spent = max(0.0, min(600.0, spent))
-    if spent:
-        rs[index]["time_spent"] = float(rs[index].get("time_spent") or 0) + spent
+    add_time_spent(attempt, subject, index, spent)
     rs[index]["visited"] = True
     attempt["current"] = {"subject": subject, "index": index}
     # lock tracking: mark first entry (safe even if already started)

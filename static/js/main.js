@@ -306,9 +306,10 @@ function sendVisit(nextSubject, nextIndex) {
   if (!testCtl.attemptId) return Promise.resolve({ ok: true });
   const prev = testCtl.lastVisit;
   let spent = 0;
-  if (prev) spent = (performance.now() - prev.at) / 1000;
+  if (prev) spent = Math.max(0, (performance.now() - prev.at) / 1000);
   testCtl.lastVisit = { subject: nextSubject, index: nextIndex, at: performance.now() };
-  return withRetry(() => api.visit(testCtl.attemptId, nextSubject, nextIndex, spent), 'visit')
+  // spent pichhle question ka hai — server use `from` wale slot me daalta hai.
+  return withRetry(() => api.visit(testCtl.attemptId, nextSubject, nextIndex, spent, prev), 'visit')
     .then(v => { if (v.timing) setTimingFromServer(v.timing); return { ok: true, view: v }; })
     .catch(e => {
       if (e.status === 409) { handle409(e); return { ok: false, jumped: true }; }
@@ -425,14 +426,11 @@ function startTicker() {
       }
       if (lockExpired && !testCtl.submitting) {
         testCtl.submitting = true;
-        // Re-visit current Q: server detects lock, returns next unlocked target
-        // (or auto-submits if everything is locked).
-        api.visit(testCtl.attemptId, subj, idx, 0)
-          .then(v => {
-            state.attempt = v; setTimingFromServer(v.timing); renderTest();
-          })
-          .catch(e => {
-            if (e.status === 409) handle409(e);
+        // Lock lagne se pehle ka time flush karo; server 409 + next target deta hai
+        // (ya sab locked hone par auto-submit).
+        sendVisit(subj, idx)
+          .then(r => {
+            if (r.ok && r.view) { state.attempt = r.view; setTimingFromServer(r.view.timing); renderTest(); }
           })
           .finally(() => { testCtl.submitting = false; });
       }
@@ -541,7 +539,10 @@ function openSubmitConfirm() {
   submit.addEventListener('click', async () => {
     submit.disabled = true;
     try {
-      const r = await api.submit(a.id);
+      // Current question par bacha hua time submit se pehle bhej do.
+      const prev = testCtl.lastVisit;
+      const spent = prev ? Math.max(0, (performance.now() - prev.at) / 1000) : 0;
+      const r = await api.submit(a.id, prev && prev.subject, prev && prev.index, spent);
       state.attempt = r;
       sheet.remove();
       stopTicker(); stopSync();

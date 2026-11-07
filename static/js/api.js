@@ -72,7 +72,12 @@ const api = {
     api.post(`/api/attempts/${encodeURIComponent(id)}/answer`, { subject, index, choice }),
   mark: (id, subject, index, marked) =>
     api.post(`/api/attempts/${encodeURIComponent(id)}/mark`, { subject, index, marked }),
-  visit: (id, subject, index, spent) =>
-    api.post(`/api/attempts/${encodeURIComponent(id)}/visit`, { subject, index, spent }),
-  submit: (id) => api.post(`/api/attempts/${encodeURIComponent(id)}/submit`),
+  visit: (id, subject, index, spent, from) =>
+    api.post(`/api/attempts/${encodeURIComponent(id)}/visit`, {
+      subject, index, spent,
+      from_subject: from ? from.subject : undefined,
+      from_index: from ? from.index : undefined,
+    }),
+  submit: (id, subject, index, spent) =>
+    api.post(`/api/attempts/${encodeURIComponent(id)}/submit`, { subject, index, spent }),
 };

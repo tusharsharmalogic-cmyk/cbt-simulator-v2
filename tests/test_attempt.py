@@ -4,6 +4,7 @@ import time
 import unittest
 
 import config
+from core import attempt_store
 from tests._base import TempDataCase
 
 
@@ -141,6 +142,64 @@ class MutationTest(Base):
                         json={"subject": "P", "index": 0, "choice": "A"})
         self.assertEqual(r.status_code, 409)
         self.assertEqual(r.get_json()["error"], "already_submitted")
+
+
+class TimeAccuracyTest(Base):
+    """Har question ka time usi question me jaye — navigation, lock aur submit par bhi."""
+
+    def _create(self, tmpl):
+        tid = self.c.put("/api/templates/new", json=tmpl).get_json()["id"]
+        return self.c.post("/api/attempts",
+                           json={"template_id": tid, "test_id": "t"}).get_json()["id"]
+
+    def test_time_credited_to_previous_question(self):
+        aid = self._create(SAMPLE)
+        r = self.c.post(f"/api/attempts/{aid}/visit",
+                        json={"subject": "P", "index": 1, "spent": 7,
+                              "from_subject": "P", "from_index": 0})
+        self.assertEqual(r.status_code, 200)
+        body = r.get_json()
+        self.assertEqual(body["responses"]["P"][0]["time_spent"], 7)
+        self.assertEqual(body["responses"]["P"][1]["time_spent"], 0)
+        self.assertEqual(body["current"], {"subject": "P", "index": 1})
+
+    def test_locked_question_still_gets_its_time(self):
+        tmpl = {
+            "name": "LockQ", "timer_mode": "total", "total_minutes": 10,
+            "subjects": [{"name": "P", "questions": 2, "marks": 4, "negative": 1,
+                          "lock_mode": "question", "per_question_seconds": 20}],
+        }
+        aid = self._create(tmpl)
+        a = attempt_store.load(aid)
+        a["responses"]["P"][0]["q_started_at"] = time.time() - 21
+        attempt_store.save(a)
+        r = self.c.post(f"/api/attempts/{aid}/visit",
+                        json={"subject": "P", "index": 0, "spent": 19.5,
+                              "from_subject": "P", "from_index": 0})
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(r.get_json()["error"], "question_locked")
+        self.assertEqual(r.get_json()["next"], {"subject": "P", "index": 1})
+        saved = attempt_store.load(aid)
+        self.assertEqual(saved["responses"]["P"][0]["time_spent"], 19.5)
+
+    def test_visit_after_submit_leaves_result_untouched(self):
+        aid = self._create(SAMPLE)
+        self.c.post(f"/api/attempts/{aid}/submit")
+        r = self.c.post(f"/api/attempts/{aid}/visit",
+                        json={"subject": "P", "index": 1, "spent": 5,
+                              "from_subject": "P", "from_index": 0})
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(r.get_json()["error"], "already_submitted")
+        self.assertEqual(attempt_store.load(aid)["responses"]["P"][0]["time_spent"], 0)
+
+    def test_submit_flushes_current_question_time(self):
+        aid = self._create(SAMPLE)
+        r = self.c.post(f"/api/attempts/{aid}/submit",
+                        json={"subject": "P", "index": 0, "spent": 12})
+        self.assertEqual(r.status_code, 200)
+        body = r.get_json()
+        self.assertEqual(body["status"], "submitted")
+        self.assertEqual(body["responses"]["P"][0]["time_spent"], 12)
 
 
 class AutoSubmitTest(Base):

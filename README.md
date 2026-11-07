@@ -31,7 +31,7 @@ Open http://127.0.0.1:8080 on phone browser. Sirf `flask` chahiye (`pip install 
 - Timer **server-authoritative** hai; client sirf countdown dikhata hai, har 30 s aur tab-focus pe resync.
 - In-progress test home pe "Resume Test" chip se khulta hai, discard button se delete hota hai.
 - Per-question / per-subject locks server pe enforce hote hain: locked question pe 409 + agla unlocked question (auto-jump). Sab locked ho jaye to auto-submit (`all_locked`), time khatam to `time_up`.
-- Answers/marks/visited/time-spent server pe save; in-progress view me `answer`/`solution` client ko bheje hi nahi jaate.
+- Answers/marks/visited/time-spent server pe save; time usi question me jaata hai jis par kharch hua (navigate, lock-expiry aur submit par flush hota hai). In-progress view me `answer`/`solution` client ko bheje hi nahi jaate.
 
 **Exam UI**
 - Question palette (bottom sheet): subject-wise grid, answered / not answered / marked / not visited / locked states, jump-to-question.
@@ -119,8 +119,8 @@ Rules: `q` non-empty, 2–6 string options, `answer` ek capital letter options k
 | GET/DELETE | `/api/attempts/<id>` | GET time-up/all-locked auto-finalize karta hai |
 | POST | `/api/attempts/<id>/answer` | `{subject, index, choice}` (`choice: null` = clear) |
 | POST | `/api/attempts/<id>/mark` | `{subject, index, marked}` |
-| POST | `/api/attempts/<id>/visit` | `{subject, index, spent}` (0–600 s clamp) |
-| POST | `/api/attempts/<id>/submit` | finalize + scoring |
+| POST | `/api/attempts/<id>/visit` | `{subject, index, spent, from_subject?, from_index?}` — `spent` pichhle question ka, naya `subject/index` visit hota hai (0–600 s clamp) |
+| POST | `/api/attempts/<id>/submit` | optional `{subject, index, spent}` flush + finalize + scoring |
 | GET/PUT/DELETE | `/api/prompt` / `/api/prompt/<key>` | `photos` (default) ya `generate` |
 
 Mutation errors: `409` submitted / time_up / subject_locked / question_locked (locked response me `next` aur fresh `view` bhi hota hai), `422` validation.
@@ -129,7 +129,7 @@ Mutation errors: `409` submitted / time_up / subject_locked / question_locked (l
 
     python -m unittest discover -s tests
 
-97 tests (0.8 s) — importer, validator, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), lock flow, skip-empty. Tests temp data dir use karte hain, real `data/` touch nahi hota.
+101 tests (0.9 s) — importer, validator, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), time attribution, lock flow, skip-empty. Tests temp data dir use karte hain, real `data/` touch nahi hota.
 
 ## Hard rules
 

@@ -217,15 +217,33 @@ def _locked_response(a, reason, now=None):
 
 @bp.post("/<aid>/visit")
 def visit(aid):
-    a, err = _prepare_mutation(aid)
+    a, err = _get_or_404(aid)
     if err:
         return err
+    if a.get("status") == "submitted":
+        return jsonify(error="already_submitted"), 409
     body = request.get_json(silent=True) or {}
     subject = body.get("subject")
     index = body.get("index")
     spent = body.get("spent", 0)
     if not isinstance(subject, str) or not isinstance(index, int):
         return jsonify(error="subject/index required"), 422
+    # Client time kisi question par kharch hua tha; apne aap se usi ko credit karo.
+    # `from_*` pichhla question batata hai, `subject/index` naya question.
+    from_subject = body.get("from_subject")
+    from_index = body.get("from_index")
+    has_from = attempt_store.valid_slot(a, from_subject, from_index)
+    if has_from:
+        attempt_store.add_time_spent(a, from_subject, from_index, spent)
+
+    a, gone = _finalize_if_over(a)
+    if gone:
+        # Time-up / all-locked par bhi aakhri chunk save ho.
+        if has_from:
+            with attempt_store._LOCK:
+                attempt_store.save(a)
+        return jsonify(error=gone), 409
+
     now = time.time()
     lock = attempt_store._is_current_subject_allowed(a, subject, now)
     if lock:
@@ -233,9 +251,10 @@ def visit(aid):
     if timer.subject_is_locked(a, subject, now):
         return _locked_response(a, "subject_locked", now)
     if timer.question_is_locked(a, subject, index, now):
+        # Locked question chhodte waqt bhi uska time already credit ho chuka hai.
         return _locked_response(a, "question_locked", now)
     try:
-        attempt_store.apply_visit(a, subject, index, spent)
+        attempt_store.apply_visit(a, subject, index, 0 if has_from else spent)
     except ValueError as e:
         return jsonify(error=str(e)), 422
     return _save_and_view(a)
@@ -249,6 +268,11 @@ def submit(aid):
     if a.get("status") == "submitted":
         return jsonify(error="already_submitted",
                        attempt=attempt_store.client_view(a, strip_answers=False)), 409
+    body = request.get_json(silent=True) or {}
+    subject = body.get("subject")
+    index = body.get("index")
+    if attempt_store.valid_slot(a, subject, index):
+        attempt_store.add_time_spent(a, subject, index, body.get("spent", 0))
     reason = "time_up" if timer.is_over(a) else "user"
     attempt_store.finalize(a, reason)
     with attempt_store._LOCK:
