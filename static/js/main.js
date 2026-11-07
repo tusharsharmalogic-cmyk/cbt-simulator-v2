@@ -660,11 +660,22 @@ async function showPreview(id) {
   const filterWrap = el('div', 'preview-filters');
   
   const subjects = Object.keys(state.test.subjects);
+  const DIFFICULTIES = ['Easy', 'Medium', 'Hard', 'Unknown'];
+
+  function diffOf(q) {
+    const d = typeof q.difficulty === 'string' ? q.difficulty.trim().toLowerCase() : '';
+    if (d === 'easy') return 'Easy';
+    if (d === 'medium') return 'Medium';
+    if (d === 'hard') return 'Hard';
+    return 'Unknown';
+  }
 
   function collectChapters() {
     const subjSel = subjFilter.getSelected();
+    const diffSel = diffFilter.getSelected();
     const set = new Set();
     const scan = (qs) => qs.forEach(q => {
+      if (diffSel.length > 0 && !diffSel.includes(diffOf(q))) return;
       const c = typeof q.chapter === 'string' ? q.chapter.trim() : '';
       if (c) set.add(c);
     });
@@ -676,8 +687,10 @@ async function showPreview(id) {
   function collectTopics() {
     const subjSel = subjFilter.getSelected();
     const chapSel = chapFilter.getSelected();
+    const diffSel = diffFilter.getSelected();
     const set = new Set();
     const scan = (qs) => qs.forEach(q => {
+      if (diffSel.length > 0 && !diffSel.includes(diffOf(q))) return;
       const c = typeof q.chapter === 'string' ? q.chapter.trim() : '';
       const t = typeof q.topic === 'string' ? q.topic.trim() : '';
       if (chapSel.length > 0 && !chapSel.includes(c)) return;
@@ -698,8 +711,13 @@ async function showPreview(id) {
     renderFilteredList();
   });
   const topicFilter = makeMultiSelect('Topics', () => renderFilteredList());
+  const diffFilter = makeMultiSelect('Difficulty', () => {
+    chapFilter.setItems(collectChapters());
+    topicFilter.setItems(collectTopics());
+    renderFilteredList();
+  });
   
-  filterWrap.append(subjFilter.wrap, chapFilter.wrap, topicFilter.wrap);
+  filterWrap.append(subjFilter.wrap, chapFilter.wrap, topicFilter.wrap, diffFilter.wrap);
   wrap.append(filterWrap);
   // Top action row: filtered count + Split button
   const actionRow = el('div', 'preview-actions');
@@ -730,6 +748,7 @@ async function showPreview(id) {
     const sSel = subjFilter.getSelected();
     const cSel = chapFilter.getSelected();
     const tSel = topicFilter.getSelected();
+    const dSel = diffFilter.getSelected();
     let hasAny = false;
     currentFiltered = [];
 
@@ -740,6 +759,7 @@ async function showPreview(id) {
         const tp = typeof q.topic === 'string' ? q.topic.trim() : '';
         if (cSel.length > 0 && !cSel.includes(ch)) return false;
         if (tSel.length > 0 && !tSel.includes(tp)) return false;
+        if (dSel.length > 0 && !dSel.includes(diffOf(q))) return false;
         return true;
       });
       if (filtered.length === 0) return;
@@ -820,6 +840,7 @@ async function showPreview(id) {
   }
 
   subjFilter.setItems(subjects);
+  diffFilter.setItems(DIFFICULTIES);
   chapFilter.setItems(collectChapters());
   topicFilter.setItems(collectTopics());
   renderFilteredList();
