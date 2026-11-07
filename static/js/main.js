@@ -599,10 +599,26 @@ async function showPreview(id) {
   state.screen = 'preview';
   try { state.test = await api.test(id); }
   catch (e) { show('Error', el('p', 'error', e.message)); return; }
+  state.previewId = id;
+
   const wrap = el('div', 'stack');
+
+  async function removeQuestion(subject, index) {
+    const label = `"${subject}" Q${index + 1}`;
+    if (!confirm(`${label} ko is test se hata dena hai? (JSON se permanently delete hoga)`)) return;
+    try {
+      const r = await api.removeQuestion(state.previewId, subject, index);
+      // Refresh preview from server (analysis/numbers bhi update ho jayein).
+      await showPreview(state.previewId);
+    } catch (e) { alert('Hata nahi paye: ' + e.message); }
+  }
+
   Object.entries(state.test.subjects).forEach(([subject, qs]) => {
     wrap.append(el('h2', 'subject-title', subject));
-    qs.forEach((q, i) => wrap.append(renderQuestion(q, i + 1, { showSolution: true })));
+    qs.forEach((q, i) => wrap.append(renderQuestion(q, i + 1, {
+      showSolution: true,
+      meta: { subject, index: i, onRemove: removeQuestion },
+    })));
   });
   show(state.test.name, wrap);
 }

@@ -41,6 +41,46 @@ def delete_test(test_id):
         return jsonify(error=f"Delete fail: {e}"), 500
     return jsonify(ok=True)
 
+@bp.post("/<test_id>/remove_question")
+def remove_question(test_id):
+    """Body: {"subject": "Physics", "index": 3}. Ek question hata kar test save.
+
+    Index 0-based hai (JSON me subject array ka position). Save atomic hoti hai
+    (`write_json_atomic`), isliye mid-write crash se file corrupt nahi hoti.
+    """
+    body = request.get_json(silent=True) or {}
+    subject = body.get("subject")
+    index = body.get("index")
+    if not isinstance(subject, str) or not subject.strip():
+        return jsonify(error="subject (non-empty string) chahiye"), 422
+    if not isinstance(index, int) or isinstance(index, bool) or index < 0:
+        return jsonify(error="index (>= 0 integer) chahiye"), 422
+
+    t, err = test_loader.load_test_safe(test_id)
+    if err:
+        code = 404 if err in ("Test nahi mila", "Invalid test id") else 422
+        return jsonify(error=err), code
+
+    subs = t.get("subjects") if isinstance(t, dict) else None
+    if not isinstance(subs, dict):
+        return jsonify(error="Test me subjects valid nahi hain"), 422
+    qs = subs.get(subject)
+    if not isinstance(qs, list):
+        return jsonify(error=f"Subject '{subject}' test me nahi mila"), 404
+    if not (0 <= index < len(qs)):
+        return jsonify(error=f"Index {index} out of range (0-{len(qs) - 1})"), 422
+
+    from core.storage import write_json_atomic
+    from core.test_loader import _path_for
+    removed = qs.pop(index)
+    write_json_atomic(_path_for(test_id), t)
+    return jsonify(
+        ok=True,
+        subject=subject,
+        removed_q=(removed or {}).get("q", ""),
+        remaining=len(qs),
+    )
+
 
 @bp.get("/<test_id>/validate")
 def validate(test_id):

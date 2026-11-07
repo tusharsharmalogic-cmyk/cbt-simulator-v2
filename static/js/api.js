@@ -29,6 +29,8 @@ const api = {
 
   tests: () => api.get('/api/tests'),
   test: (id) => api.get('/api/tests/' + encodeURIComponent(id)),
+  removeQuestion: (id, subject, index) => api.post(
+    `/api/tests/${encodeURIComponent(id)}/remove_question`, { subject, index }),
   validateTest: (id, templateId) => api.get(
     `/api/tests/${encodeURIComponent(id)}/validate?template=${encodeURIComponent(templateId)}`),
 
