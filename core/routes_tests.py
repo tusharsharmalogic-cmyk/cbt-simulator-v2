@@ -83,6 +83,57 @@ def merge_tests():
 
     return jsonify({"ok": True, "test_id": new_id, "test_name": saved_name})
 
+@bp.post("/<test_id>/split")
+def split_test(test_id):
+    """Body: {"questions": [{"subject": "Physics", "index": 0}, ...]}.
+
+    Selected questions ko (subject, chapter, topic) ke hisaab se group karke
+    har group ka alag test banata hai. Original test delete NAHI hota.
+    Name = "<Subject> - <Chapter> - <Topic>".
+    """
+    t, err = test_loader.load_test_safe(test_id)
+    if err:
+        code = 404 if err in ("Test nahi mila", "Invalid test id") else 422
+        return jsonify(error=err), code
+
+    body = request.get_json(silent=True) or {}
+    refs = body.get("questions")
+    if not isinstance(refs, list) or not refs:
+        return jsonify(error="questions list (non-empty) chahiye"), 422
+
+    subs = t.get("subjects") or {}
+    groups = {}
+    for r in refs:
+        if not isinstance(r, dict):
+            continue
+        sname = r.get("subject")
+        idx = r.get("index")
+        if not isinstance(sname, str) or not isinstance(idx, int) or isinstance(idx, bool):
+            continue
+        qs = subs.get(sname) or []
+        if not (0 <= idx < len(qs)):
+            continue
+        q = qs[idx]
+        ch_raw = q.get("chapter") if isinstance(q.get("chapter"), str) else ""
+        tp_raw = q.get("topic") if isinstance(q.get("topic"), str) else ""
+        ch = ch_raw.strip() or "Unknown"
+        tp = tp_raw.strip() or "Unknown"
+        groups.setdefault((sname, ch, tp), []).append(q)
+
+    if not groups:
+        return jsonify(error="Split karne layak questions nahi mile"), 422
+
+    created = []
+    for (sname, ch, tp), qs in groups.items():
+        name = f"{sname} - {ch} - {tp}"
+        new_id, saved = importer.save_imported_test({sname: qs}, name)
+        created.append({
+            "id": new_id, "name": saved, "subject": sname,
+            "chapter": ch, "topic": tp, "count": len(qs),
+        })
+
+    return jsonify(ok=True, count=len(created), created=created)
+
 @bp.post("/<test_id>/remove_question")
 def remove_question(test_id):
     """Body: {"subject": "Physics", "index": 3}. Ek question hata kar test save.

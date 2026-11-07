@@ -595,6 +595,59 @@ function mountPalette() {
 function unmountPalette() { if (paletteEl) { paletteEl.remove(); paletteEl = null; } }
 
 // ========== Preview ==========
+// Reusable multi-select widget. label = "Subjects"/"Chapters"/"Topics".
+function makeMultiSelect(label, onChange) {
+  const wrap = el('div', 'multi-select');
+  const btn = el('button', 'input filter-select multi-btn', 'All ' + label);
+  btn.type = 'button';
+  const list = el('div', 'multi-list');
+  list.hidden = true;
+  const selected = new Set();
+
+  btn.addEventListener('click', (e) => { e.stopPropagation(); list.hidden = !list.hidden; });
+  document.addEventListener('click', () => { list.hidden = true; });
+  wrap.addEventListener('click', (e) => e.stopPropagation());
+  wrap.append(btn, list);
+
+  function updateBtnText() {
+    if (selected.size === 0) btn.textContent = 'All ' + label;
+    else if (selected.size === 1) btn.textContent = Array.from(selected)[0];
+    else btn.textContent = selected.size + ' ' + label + ' selected';
+  }
+
+  function setItems(items) {
+    const valid = new Set(items);
+    Array.from(selected).forEach(v => { if (!valid.has(v)) selected.delete(v); });
+    list.replaceChildren();
+    if (items.length === 0) {
+      list.append(el('div', 'muted small', 'Koi ' + label.toLowerCase() + ' nahi'));
+    } else {
+      items.forEach(v => {
+        const lab = el('label', 'multi-item');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = v;
+        cb.checked = selected.has(v);
+        cb.addEventListener('change', () => {
+          if (cb.checked) selected.add(v); else selected.delete(v);
+          updateBtnText();
+          onChange();
+        });
+        lab.append(cb, document.createTextNode(' ' + v));
+        list.append(lab);
+      });
+    }
+    updateBtnText();
+  }
+
+  return {
+    wrap, btn, list,
+    getSelected: () => Array.from(selected),
+    clear: () => { selected.clear(); list.querySelectorAll('input:checked').forEach(cb => cb.checked = false); updateBtnText(); },
+    setItems,
+  };
+}
+
 async function showPreview(id) {
   state.screen = 'preview';
   try { state.test = await api.test(id); }
@@ -606,135 +659,96 @@ async function showPreview(id) {
   // Filter Bar
   const filterWrap = el('div', 'preview-filters');
   
-  const subjSelect = el('select', 'input filter-select');
-  const chapSelect = el('select', 'input filter-select');
-  
-  // Custom multi-select for topics
-  const topicWrap = el('div', 'multi-select');
-  const topicBtn = el('button', 'input filter-select multi-btn', 'All Topics');
-  topicBtn.type = 'button';
-  const topicList = el('div', 'multi-list');
-  topicList.hidden = true;
-  
-  topicBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    topicList.hidden = !topicList.hidden;
-  });
-  
-  // Close dropdown when clicking outside
-  document.addEventListener('click', () => { topicList.hidden = true; });
-  topicWrap.addEventListener('click', (e) => e.stopPropagation());
-  
-  topicWrap.append(topicBtn, topicList);
-
   const subjects = Object.keys(state.test.subjects);
-  subjSelect.append(new Option('All Subjects', ''));
-  subjects.forEach(s => subjSelect.append(new Option(s, s)));
-  
-  function updateTopicBtnText() {
-    const checked = Array.from(topicList.querySelectorAll('input:checked')).map(cb => cb.value);
-    if (checked.length === 0) topicBtn.textContent = 'All Topics';
-    else if (checked.length === 1) topicBtn.textContent = checked[0];
-    else topicBtn.textContent = checked.length + ' Topics selected';
-  }
 
-  function updateChapters() {
-    const subj = subjSelect.value;
-    chapSelect.replaceChildren(new Option('All Chapters', ''));
-    
-    const chaptersSet = new Set();
-    const processQs = (qs) => {
-      qs.forEach(q => {
-        if (typeof q.chapter === 'string' && q.chapter.trim()) chaptersSet.add(q.chapter.trim());
-      });
-    };
-
-    if (subj) {
-      processQs(state.test.subjects[subj] || []);
-    } else {
-      subjects.forEach(s => processQs(state.test.subjects[s] || []));
-    }
-    
-    Array.from(chaptersSet).sort().forEach(c => chapSelect.append(new Option(c, c)));
-  }
-
-  function updateTopics() {
-    const subj = subjSelect.value;
-    const chap = chapSelect.value;
-    topicList.replaceChildren();
-    
-    const topicsSet = new Set();
-    const processQs = (qs) => {
-      qs.forEach(q => {
-        if (chap && (q.chapter || '').trim() !== chap) return;
-        if (typeof q.topic === 'string' && q.topic.trim()) topicsSet.add(q.topic.trim());
-      });
-    };
-
-    if (subj) {
-      processQs(state.test.subjects[subj] || []);
-    } else {
-      subjects.forEach(s => processQs(state.test.subjects[s] || []));
-    }
-    
-    Array.from(topicsSet).sort().forEach(t => {
-      const label = el('label', 'multi-item');
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.value = t;
-      cb.addEventListener('change', () => {
-        updateTopicBtnText();
-        renderFilteredList();
-      });
-      label.append(cb, document.createTextNode(' ' + t));
-      topicList.append(label);
+  function collectChapters() {
+    const subjSel = subjFilter.getSelected();
+    const set = new Set();
+    const scan = (qs) => qs.forEach(q => {
+      const c = typeof q.chapter === 'string' ? q.chapter.trim() : '';
+      if (c) set.add(c);
     });
-    updateTopicBtnText();
+    if (subjSel.length === 0) subjects.forEach(s => scan(state.test.subjects[s] || []));
+    else subjSel.forEach(s => scan(state.test.subjects[s] || []));
+    return Array.from(set).sort();
   }
 
-  subjSelect.addEventListener('change', () => { updateChapters(); updateTopics(); renderFilteredList(); });
-  chapSelect.addEventListener('change', () => { updateTopics(); renderFilteredList(); });
+  function collectTopics() {
+    const subjSel = subjFilter.getSelected();
+    const chapSel = chapFilter.getSelected();
+    const set = new Set();
+    const scan = (qs) => qs.forEach(q => {
+      const c = typeof q.chapter === 'string' ? q.chapter.trim() : '';
+      const t = typeof q.topic === 'string' ? q.topic.trim() : '';
+      if (chapSel.length > 0 && !chapSel.includes(c)) return;
+      if (t) set.add(t);
+    });
+    if (subjSel.length === 0) subjects.forEach(s => scan(state.test.subjects[s] || []));
+    else subjSel.forEach(s => scan(state.test.subjects[s] || []));
+    return Array.from(set).sort();
+  }
 
-  filterWrap.append(subjSelect, chapSelect, topicWrap);
+  const subjFilter = makeMultiSelect('Subjects', () => {
+    chapFilter.setItems(collectChapters());
+    topicFilter.setItems(collectTopics());
+    renderFilteredList();
+  });
+  const chapFilter = makeMultiSelect('Chapters', () => {
+    topicFilter.setItems(collectTopics());
+    renderFilteredList();
+  });
+  const topicFilter = makeMultiSelect('Topics', () => renderFilteredList());
+  
+  filterWrap.append(subjFilter.wrap, chapFilter.wrap, topicFilter.wrap);
   wrap.append(filterWrap);
+  // Top action row: filtered count + Split button
+  const actionRow = el('div', 'preview-actions');
+  const countLbl = el('div', 'muted small', '');
+  const splitBtn = el('button', 'btn ghost small', 'Split');
+  splitBtn.type = 'button';
+  splitBtn.disabled = true;
+  splitBtn.addEventListener('click', openSplitDialog);
+  actionRow.append(countLbl, splitBtn);
+  wrap.append(actionRow);
 
   const listWrap = el('div', 'stack');
   wrap.append(listWrap);
 
   async function removeQuestion(subject, index) {
-    const label = `"${subject}" Q${index + 1}`;
-    if (!confirm(`${label} ko is test se hata dena hai? (JSON se permanently delete hoga)`)) return;
+    const label = '"' + subject + '" Q' + (index + 1);
+    if (!confirm(label + ' ko is test se hata dena hai? (JSON se permanently delete hoga)')) return;
     try {
-      const r = await api.removeQuestion(state.previewId, subject, index);
-      // Refresh preview from server (analysis/numbers bhi update ho jayein).
+      await api.removeQuestion(state.previewId, subject, index);
       await showPreview(state.previewId);
     } catch (e) { alert('Hata nahi paye: ' + e.message); }
   }
 
+  let currentFiltered = [];
+
   function renderFilteredList() {
     listWrap.replaceChildren();
-    const sFilter = subjSelect.value;
-    const cFilter = chapSelect.value;
-    const tFilters = Array.from(topicList.querySelectorAll('input:checked')).map(cb => cb.value);
+    const sSel = subjFilter.getSelected();
+    const cSel = chapFilter.getSelected();
+    const tSel = topicFilter.getSelected();
     let hasAny = false;
+    currentFiltered = [];
 
     Object.entries(state.test.subjects).forEach(([subject, qs]) => {
-      if (sFilter && sFilter !== subject) return;
-
+      if (sSel.length > 0 && !sSel.includes(subject)) return;
       const filtered = qs.map((q, i) => ({ q, i })).filter(({ q }) => {
-        if (cFilter && (q.chapter || '').trim() !== cFilter) return false;
-        if (tFilters.length > 0) {
-          const qt = (q.topic || '').trim();
-          if (!tFilters.includes(qt)) return false;
-        }
+        const ch = typeof q.chapter === 'string' ? q.chapter.trim() : '';
+        const tp = typeof q.topic === 'string' ? q.topic.trim() : '';
+        if (cSel.length > 0 && !cSel.includes(ch)) return false;
+        if (tSel.length > 0 && !tSel.includes(tp)) return false;
         return true;
       });
-
       if (filtered.length === 0) return;
       hasAny = true;
-
-      listWrap.append(el('h2', 'subject-title', subject + ` (${filtered.length} Qs)`));
+      listWrap.append(el('h2', 'subject-title', subject + ' (' + filtered.length + ' Qs)'));
       filtered.forEach(({ q, i }) => {
+        const ch = typeof q.chapter === 'string' ? q.chapter.trim() : '';
+        const tp = typeof q.topic === 'string' ? q.topic.trim() : '';
+        currentFiltered.push({ subject, index: i, chapter: ch, topic: tp });
         listWrap.append(renderQuestion(q, i + 1, {
           showSolution: true,
           meta: { subject, index: i, onRemove: removeQuestion },
@@ -742,17 +756,72 @@ async function showPreview(id) {
       });
     });
 
-    if (!hasAny) {
-      listWrap.append(el('p', 'muted', 'Is filter me koi question nahi mila.'));
-    }
-    // Filter apply hone ke baad naye DOM elements pe MathJax chalao.
-    // Sirf tab chalao jab element screen pe attach ho chuka ho, warna
-    // MathJax SVG ko galat width/height ke saath render kar deta hai.
+    if (!hasAny) listWrap.append(el('p', 'muted', 'Is filter me koi question nahi mila.'));
+    countLbl.textContent = currentFiltered.length + ' questions visible';
+    splitBtn.disabled = currentFiltered.length === 0;
     if (window.typeset && listWrap.isConnected) typeset(listWrap);
   }
 
-  // Init
-  updateChapters();
+  function previewGroups() {
+    const map = new Map();
+    currentFiltered.forEach(it => {
+      const ch = it.chapter || 'Unknown';
+      const tp = it.topic || 'Unknown';
+      const key = it.subject + '||' + ch + '||' + tp;
+      if (!map.has(key)) map.set(key, { subject: it.subject, chapter: ch, topic: tp, count: 0 });
+      map.get(key).count += 1;
+    });
+    return Array.from(map.values());
+  }
+
+  function openSplitDialog() {
+    if (currentFiltered.length === 0) return;
+    const groups = previewGroups();
+    const sheet = el('div', 'sheet');
+    sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
+    const panel = el('div', 'sheet-panel');
+    panel.append(el('div', 'sheet-handle'));
+    panel.append(el('h3', '', 'Split ' + currentFiltered.length + ' questions'));
+    panel.append(el('div', 'muted small', 'Selected questions subject + chapter + topic ke hisaab se group hokar alag tests banenge. Original test delete NAHI hoga.'));
+    panel.append(el('div', 'tc-section-title', groups.length + ' naye tests banenge'));
+    const preview = el('div', 'split-preview');
+    groups.forEach(g => {
+      const row = el('div', 'split-row');
+      row.append(el('div', 'split-name', g.subject + ' - ' + g.chapter + ' - ' + g.topic));
+      row.append(el('div', 'muted small', g.count + ' Q'));
+      preview.append(row);
+    });
+    panel.append(preview);
+    const row2 = el('div', 'actions-row');
+    const cancel = el('button', 'btn ghost', 'Cancel');
+    cancel.type = 'button';
+    cancel.addEventListener('click', () => sheet.remove());
+    const okBtn = el('button', 'btn', 'Create ' + groups.length + ' tests');
+    okBtn.type = 'button';
+    okBtn.addEventListener('click', async () => {
+      okBtn.disabled = true;
+      okBtn.textContent = 'Splitting...';
+      try {
+        const questions = currentFiltered.map(it => ({ subject: it.subject, index: it.index }));
+        const r = await api.splitTest(state.previewId, questions);
+        sheet.remove();
+        alert(r.count + ' naye tests ban gaye. Available Tests screen pe check karo.');
+        location.hash = '#/available';
+      } catch (e) {
+        alert('Split fail: ' + e.message);
+        okBtn.disabled = false;
+        okBtn.textContent = 'Create ' + groups.length + ' tests';
+      }
+    });
+    row2.append(cancel, okBtn);
+    panel.append(row2);
+    sheet.append(panel);
+    document.body.append(sheet);
+  }
+
+  subjFilter.setItems(subjects);
+  chapFilter.setItems(collectChapters());
+  topicFilter.setItems(collectTopics());
   renderFilteredList();
 
   show(state.test.name, wrap);

@@ -32,6 +32,8 @@ const api = {
   removeQuestion: (id, subject, index) => api.post(
     `/api/tests/${encodeURIComponent(id)}/remove_question`, { subject, index }),
   mergeTests: (test_ids, name) => api.post('/api/tests/merge', { test_ids, name }),
+  splitTest: (id, questions) => api.post(
+    `/api/tests/${encodeURIComponent(id)}/split`, { questions }),
   validateTest: (id, templateId) => api.get(
     `/api/tests/${encodeURIComponent(id)}/validate?template=${encodeURIComponent(templateId)}`),
 

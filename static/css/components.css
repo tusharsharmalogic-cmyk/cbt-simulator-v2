@@ -632,6 +632,51 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
 }
 .merge-mini:hover { background: rgba(74,125,255,0.2); }
 
+/* Preview action row (count + split) */
+.preview-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0 12px 0;
+  padding: 0 2px;
+}
+.preview-actions .btn { flex-shrink: 0; }
+
+/* Split dialog preview list */
+.split-preview {
+  max-height: 40vh;
+  overflow-y: auto;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  padding: 4px;
+  margin: 8px 0;
+  background: var(--bg-alt, rgba(0,0,0,0.02));
+}
+.split-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,0.06));
+}
+.split-row:last-child { border-bottom: none; }
+.split-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+@media (prefers-color-scheme: dark) {
+  .split-preview { background: rgba(255,255,255,0.04); border-color: #444; }
+  .split-row { border-bottom-color: rgba(255,255,255,0.06); }
+}
+
 /* Preview Filters */
 .preview-filters {
   display: flex;
