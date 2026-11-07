@@ -49,6 +49,8 @@ const api = {
     return data;
   },
 
+  pasteTest: (text, name) => api.post('/api/tests/paste', { json: text, name }),
+
   prompt: (key) => api.get('/api/prompt/' + encodeURIComponent(key)),
   savePrompt: (key, text) => api.put('/api/prompt/' + encodeURIComponent(key), { text }),
   resetPrompt: (key) => api.del('/api/prompt/' + encodeURIComponent(key)),

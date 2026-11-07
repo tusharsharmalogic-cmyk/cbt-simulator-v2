@@ -49,6 +49,70 @@ def load_test_safe(test_id):
         return None, f"File padh nahi paye: {e}"
 
 
+def _label(v):
+    """chapter/topic ka display naam; khaali/missing -> 'Unknown'."""
+    if isinstance(v, str) and v.strip():
+        return v.strip()
+    return "Unknown"
+
+
+def analyze_test(test):
+    """Test JSON se analysis: subject/chapter/topic breakdown + difficulty split.
+
+    Sirf JSON me jo hai wahi ginte hain; missing chapter/topic/difficulty
+    'Unknown' bucket me jaate hain.
+    """
+    subjects = test.get("subjects") or {}
+    out_subjects = []
+    diff = {"easy": 0, "medium": 0, "hard": 0, "unknown": 0}
+    total = 0
+    chapters_all, topics_all = set(), set()
+
+    for sname, qs in subjects.items():
+        qs = qs if isinstance(qs, list) else []
+        sdiff = {"easy": 0, "medium": 0, "hard": 0, "unknown": 0}
+        chapters = {}          # chapter name -> {questions, topics: {name: n}}
+        for q in qs:
+            if not isinstance(q, dict):
+                q = {}
+            d = q.get("difficulty")
+            d = d.strip().lower() if isinstance(d, str) else ""
+            key = d if d in DIFFICULTIES else "unknown"
+            sdiff[key] += 1
+            diff[key] += 1
+
+            ch = _label(q.get("chapter"))
+            tp = _label(q.get("topic"))
+            chapters_all.add(ch)
+            topics_all.add((ch, tp))
+            c = chapters.setdefault(ch, {"name": ch, "questions": 0, "topics": {}})
+            c["questions"] += 1
+            c["topics"][tp] = c["topics"].get(tp, 0) + 1
+
+        total += len(qs)
+        out_subjects.append({
+            "name": sname,
+            "questions": len(qs),
+            "difficulty": sdiff,
+            "chapters": [
+                {"name": c["name"], "questions": c["questions"],
+                 "topics": [{"name": n, "questions": k}
+                            for n, k in c["topics"].items()]}
+                for c in chapters.values()
+            ],
+        })
+
+    pct = {k: (round(v * 100 / total, 1) if total else 0.0) for k, v in diff.items()}
+    return {
+        "subjects": out_subjects,
+        "total": total,
+        "difficulty": diff,
+        "difficulty_percent": pct,
+        "chapter_count": len(chapters_all),
+        "topic_count": len(topics_all),
+    }
+
+
 def list_tests():
     """Har test ka chhota summary: id, name, subject-wise question count.
     Kharab file poori list na tode — us entry me 'error' key aata hai."""
@@ -65,7 +129,8 @@ def list_tests():
                 t = json.load(f)
             subjects = {name: len(qs) for name, qs in t.get("subjects", {}).items()}
             out.append({"id": p.stem, "name": t.get("name", p.stem),
-                        "subjects": subjects, "created_at": mtime})
+                        "subjects": subjects, "created_at": mtime,
+                        "analysis": analyze_test(t)})
         except json.JSONDecodeError as e:
             out.append({"id": p.stem, "name": p.stem, "created_at": mtime,
                         "error": f"JSON kharab: line {e.lineno} col {e.colno}"})

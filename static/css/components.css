@@ -564,20 +564,21 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
 }
 .test-card-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 14px 16px;
   cursor: pointer;
 }
-.test-card-head .tc-icon { font-size: 22px; }
+.test-card-head .tc-icon { font-size: 22px; flex: none; line-height: 1.2; }
 .test-card-head .tc-main { flex: 1; min-width: 0; }
+/* Lamba test name poora dikhe — truncate nahi. */
 .test-card-head h3 {
   margin: 0 0 4px;
   font-size: 16px;
   font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .test-card-head .tc-meta {
   font-size: 12px;
@@ -589,6 +590,8 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
 .test-card-head .tc-toggle {
   font-size: 18px;
   color: var(--muted);
+  flex: none;
+  padding-top: 2px;
   transition: transform .2s;
 }
 .test-card.open .tc-toggle { transform: rotate(180deg); }
@@ -614,6 +617,42 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
   margin-top: 10px;
 }
 .tc-actions .btn { flex: 1; min-width: 110px; }
+
+/* ---- Available test details (analysis) ---- */
+.tc-summary { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+.tc-summary .chip { font-size: 12px; padding: 4px 10px; }
+.tc-section-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--muted);
+  margin: 14px 0 6px;
+}
+.diff-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 13px; }
+.diff-name { min-width: 62px; font-weight: 600; }
+.diff-bar { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.diff-fill { height: 100%; border-radius: 4px; transition: width .2s ease-out; }
+.diff-fill.easy { background: #2e7d32; }
+.diff-fill.medium { background: #f9a825; }
+.diff-fill.hard { background: #c62828; }
+.diff-count { min-width: 86px; text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.tc-subj-block { margin: 10px 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; }
+.tc-subj-head { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
+.tc-subj-head .tc-subj-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tc-subj-head .tc-subj-count { font-size: 12px; color: var(--muted); font-weight: 500; }
+.tc-chapters { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.tc-chapter {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); font-size: 13px; text-align: left; cursor: pointer;
+}
+.tc-chapter .tc-ch-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tc-chapter .tc-ch-count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tc-chapter .tc-ch-arrow { font-size: 11px; color: var(--muted); transition: transform .2s; }
+.tc-chapter.open .tc-ch-arrow { transform: rotate(90deg); }
+.tc-topics { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 2px 2px 12px; }
+.tc-topics .chip { font-size: 12px; padding: 4px 9px; }
+.tc-topics[hidden] { display: none; }
 
 /* Import CTA */
 .import-cta {
@@ -705,6 +744,10 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
 }
 .import-mini:active { transform: scale(.96); }
 .import-mini:disabled { opacity: .6; }
+.paste-mini { background: var(--surface); color: var(--primary); border: 1px solid var(--primary); }
+.paste-mini .import-cta-ico { background: rgba(127,127,127,.18); color: inherit; }
+.paste-area { min-height: 200px; font-family: ui-monospace, monospace; font-size: 12px; }
+
 .import-mini .import-cta-ico {
   display: inline-grid; place-items: center;
   width: 20px; height: 20px; border-radius: 50%;

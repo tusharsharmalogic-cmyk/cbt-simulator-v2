@@ -1,5 +1,8 @@
 """GET /api/tests, GET /api/tests/<id>, GET /api/tests/<id>/validate?template=<tid>,
-POST /api/tests/import (multipart: files[]=@f1 files[]=@f2 template_id=<tid> [name=..])"""
+POST /api/tests/import (multipart: files[]=@f1 files[]=@f2 template_id=<tid> [name=..]),
+POST /api/tests/paste ({json: "...", name?: "..."}) — pasted JSON ko seedha test bana kar save"""
+import json
+
 from flask import Blueprint, jsonify, request
 
 from core import importer, template_store, test_loader
@@ -120,6 +123,44 @@ def import_tests():
         "skipped": result.get("skipped", {}),
         "rejected": rejected_names,
     })
+
+
+@bp.post("/paste")
+def paste_test():
+    """JSON text paste karke test save karo (file upload ki zaroorat nahi).
+
+    Body: {"json": "<test json text>", "name": "optional"}
+    Test ka naam: body.name > JSON ka "name" > "Pasted Test".
+    """
+    body = request.get_json(silent=True) or {}
+    text = body.get("json")
+    if not isinstance(text, str) or not text.strip():
+        return jsonify(error="JSON text khali hai"), 422
+    if len(text.encode("utf-8")) > _MAX_FILE_BYTES:
+        return jsonify(error="JSON 5MB se bada hai"), 422
+    try:
+        doc = json.loads(text)
+    except json.JSONDecodeError as e:
+        return jsonify(error=f"JSON kharab hai: line {e.lineno}, col {e.colno}: {e.msg}"), 422
+
+    name = (body.get("name") or "").strip()
+    if not name and isinstance(doc, dict) and isinstance(doc.get("name"), str):
+        name = doc["name"].strip()
+
+    raw = json.dumps(doc, ensure_ascii=False).encode("utf-8")
+    result = importer.import_files([("pasted.json", raw)], None)
+    if result["errors"]:
+        return jsonify(errors=result["errors"], skipped=result.get("skipped", {})), 422
+
+    test_id, saved_name = importer.save_imported_test(result["subjects"], name or "Pasted Test")
+    return jsonify({
+        "test_id": test_id,
+        "test_name": saved_name,
+        "counts": result["counts"],
+        "used": result["used"],
+        "total": result["total"],
+        "skipped": result.get("skipped", {}),
+    }), 201
 
 
 def time_str():

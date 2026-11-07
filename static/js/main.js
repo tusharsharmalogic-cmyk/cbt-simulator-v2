@@ -675,6 +675,64 @@ async function showAvailableTests() {
   }
   searchInput.addEventListener('input', () => renderList(searchInput.value));
 
+  // Paper ka overall difficulty level: har level ka count + % bar.
+  function difficultyBlock(analysis) {
+    const box = el('div', '');
+    box.append(el('div', 'tc-section-title', 'Paper level'));
+    const pct = analysis.difficulty_percent || {};
+    const counts = analysis.difficulty || {};
+    [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']].forEach(([key, label]) => {
+      const row = el('div', 'diff-row');
+      row.append(el('span', 'diff-name', label));
+      const bar = el('div', 'diff-bar');
+      const fill = el('div', 'diff-fill ' + key);
+      fill.style.width = Math.max(0, Math.min(100, Number(pct[key]) || 0)) + '%';
+      bar.append(fill);
+      row.append(bar);
+      row.append(el('span', 'diff-count', `${counts[key] || 0} Q · ${pct[key] || 0}%`));
+      box.append(row);
+    });
+    if (counts.unknown) {
+      box.append(el('div', 'muted small', `${counts.unknown} questions me difficulty tag nahi hai (Unknown)`));
+    }
+    return box;
+  }
+
+  // Ek subject: kitne questions + chapters (click par uske topics).
+  function subjectBlock(s) {
+    const box = el('div', 'tc-subj-block');
+    const head = el('div', 'tc-subj-head');
+    head.append(el('span', 'tc-subj-dot', '●'));
+    head.append(el('span', 'tc-subj-name', s.name));
+    head.append(el('span', 'tc-subj-count', `${s.questions} Q`));
+    box.append(head);
+
+    const chWrap = el('div', 'tc-chapters');
+    (s.chapters || []).forEach((ch) => {
+      const btn = el('button', 'tc-chapter');
+      btn.type = 'button';
+      btn.append(el('span', 'tc-ch-name', '📖 ' + ch.name));
+      btn.append(el('span', 'tc-ch-count', `${ch.questions} Q`));
+      btn.append(el('span', 'tc-ch-arrow', '▸'));
+      const topics = el('div', 'tc-topics');
+      topics.hidden = true;
+      (ch.topics || []).forEach(tp => {
+        topics.append(el('span', 'chip', `${tp.name} · ${tp.questions}Q`));
+      });
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        topics.hidden = !topics.hidden;
+        btn.classList.toggle('open', !topics.hidden);
+      });
+      chWrap.append(btn, topics);
+    });
+    if (!(s.chapters || []).length) {
+      chWrap.append(el('div', 'muted small', 'Chapter metadata nahi hai.'));
+    }
+    box.append(chWrap);
+    return box;
+  }
+
   function testAccordion(t) {
     const card = el('div', 'test-card');
     const head = el('div', 'test-card-head');
@@ -687,6 +745,7 @@ async function showAvailableTests() {
       : '—';
     const meta = el('div', 'tc-meta');
     meta.append(el('span', '', '📅 ' + dateStr));
+    meta.append(el('span', '', 'Subjects: ' + Object.keys(t.subjects || {}).length));
     meta.append(el('span', '', 'Total Q: ' + total));
     main.append(meta);
     head.append(main);
@@ -699,14 +758,26 @@ async function showAvailableTests() {
     card.append(head);
 
     const body = el('div', 'test-card-body');
-    const subs = el('div', 'tc-subjects');
-    Object.entries(t.subjects || {}).forEach(([sname, n]) => {
-      const row = el('div', 'tc-subj-row');
-      row.append(el('span', 'tc-subj-dot', '●'));
-      row.append(el('span', '', `${sname} : ${n} Questions`));
-      subs.append(row);
-    });
-    body.append(subs);
+    const a = t.analysis;
+    if (a) {
+      const summary = el('div', 'tc-summary');
+      summary.append(el('span', 'chip', `${a.subjects.length} subjects`));
+      summary.append(el('span', 'chip', `${a.total} questions`));
+      summary.append(el('span', 'chip', `${a.chapter_count} chapters`));
+      summary.append(el('span', 'chip', `${a.topic_count} topics`));
+      body.append(summary, difficultyBlock(a));
+      body.append(el('div', 'tc-section-title', 'Subjects, chapters & topics'));
+      a.subjects.forEach(s => body.append(subjectBlock(s)));
+    } else {
+      const subs = el('div', 'tc-subjects');
+      Object.entries(t.subjects || {}).forEach(([sname, n]) => {
+        const row = el('div', 'tc-subj-row');
+        row.append(el('span', 'tc-subj-dot', '●'));
+        row.append(el('span', '', `${sname} : ${n} Questions`));
+        subs.append(row);
+      });
+      body.append(subs);
+    }
 
     const actions = el('div', 'tc-actions');
     const viewBtn = el('button', 'btn ghost', '👁 View');
@@ -760,7 +831,70 @@ async function showAvailableTests() {
   importBtn.addEventListener('click', () => picker.click());
   importBtn.append(picker);
   topRow.append(importBtn);
+
+  // Paste JSON: clipboard se test JSON seedha Available Test me save.
+  const pasteBtn = el('button', 'import-mini paste-mini');
+  pasteBtn.type = 'button';
+  pasteBtn.title = 'Paste JSON';
+  pasteBtn.append(el('span', 'import-cta-ico', '📋'), el('span', 'import-cta-txt', 'Paste'));
+  pasteBtn.addEventListener('click', openPasteSheet);
+  topRow.append(pasteBtn);
   state._availCta = null;
+
+  function openPasteSheet() {
+    const sheet = el('div', 'sheet');
+    sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
+    const panel = el('div', 'sheet-panel');
+    panel.append(el('div', 'sheet-handle'));
+    panel.append(el('h3', '', 'Paste test JSON'));
+    panel.append(el('div', 'muted small', 'AI ka banaya test JSON yahan paste karo — seedha Available Test me save ho jayega.'));
+
+    const ta = document.createElement('textarea');
+    ta.className = 'input prompt-area paste-area';
+    ta.spellcheck = false;
+    ta.placeholder = '{\n  "name": "Test name",\n  "subjects": { "Physics": [ { "q": "...", "options": ["A","B"], "answer": "A", "chapter": "...", "topic": "...", "difficulty": "easy" } ] }\n}';
+    panel.append(ta);
+
+    const nameInput = document.createElement('input');
+    nameInput.className = 'input';
+    nameInput.type = 'text';
+    nameInput.placeholder = 'Test name (optional — JSON ke "name" se lega)';
+    panel.append(nameInput);
+
+    const msg = el('div', 'muted small', '');
+    panel.append(msg);
+
+    const row = el('div', 'actions-row');
+    const cancel = el('button', 'btn ghost', 'Cancel');
+    cancel.type = 'button';
+    cancel.addEventListener('click', () => sheet.remove());
+    const save = el('button', 'btn', 'Save test');
+    save.type = 'button';
+    save.addEventListener('click', async () => {
+      const text = ta.value.trim();
+      if (!text) { msg.textContent = 'Pehle JSON paste karo.'; ta.focus(); return; }
+      try { JSON.parse(text); }
+      catch (e) { msg.textContent = 'JSON kharab hai: ' + e.message; return; }
+      save.disabled = true;
+      msg.textContent = 'Save ho raha hai...';
+      try {
+        await api.pasteTest(text, nameInput.value.trim());
+        sheet.remove();
+        showAvailableTests();
+      } catch (e) {
+        msg.textContent = 'Save fail: ' + (e.message || 'unknown');
+        if (e.skipped) {
+          Object.entries(e.skipped).forEach(([f, m]) => { msg.textContent += `\n${[].concat(m).join(', ')}`; });
+        }
+        save.disabled = false;
+      }
+    });
+    row.append(cancel, save);
+    panel.append(row);
+    sheet.append(panel);
+    document.body.append(sheet);
+    ta.focus();
+  }
 
   show('Available Tests', wrap);
   backBtn.hidden = false;

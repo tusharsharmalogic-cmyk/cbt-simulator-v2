@@ -193,5 +193,83 @@ class ValidateRouteTest(TempDataCase):
         self.assertTrue(broken and "error" in broken[0])
 
 
+ANALYSIS_TEST = {
+    "name": "Analysis Test",
+    "subjects": {
+        "Physics": [
+            {"q": "q1", "options": ["A", "B"], "answer": "A",
+             "chapter": "Kinematics", "topic": "Motion", "difficulty": "easy"},
+            {"q": "q2", "options": ["A", "B"], "answer": "A",
+             "chapter": "Kinematics", "topic": "Graphs", "difficulty": "hard"},
+            {"q": "q3", "options": ["A", "B"], "answer": "A",
+             "chapter": "Optics", "topic": "Lenses", "difficulty": "medium"},
+        ],
+        "Chemistry": [
+            {"q": "c1", "options": ["A", "B"], "answer": "A"},
+        ],
+    },
+}
+
+
+class AnalysisAndPasteTest(TempDataCase):
+    def setUp(self):
+        super().setUp()
+        import app
+        self.c = app.create_app().test_client()
+        with open(config.TESTS_DIR / "analysis.json", "w", encoding="utf-8") as f:
+            json.dump(ANALYSIS_TEST, f)
+
+    def _entry(self, tid="analysis"):
+        arr = self.c.get("/api/tests").get_json()
+        return next(x for x in arr if x["id"] == tid)
+
+    def test_list_includes_analysis_summary(self):
+        a = self._entry()["analysis"]
+        self.assertEqual(a["total"], 4)
+        self.assertEqual(a["difficulty"],
+                         {"easy": 1, "medium": 1, "hard": 1, "unknown": 1})
+        self.assertEqual(a["difficulty_percent"]["easy"], 25.0)
+        self.assertEqual(a["chapter_count"], 3)   # Kinematics, Optics, Unknown
+        self.assertEqual(a["topic_count"], 4)
+
+    def test_analysis_chapters_and_topics(self):
+        a = self._entry()["analysis"]
+        phys = a["subjects"][0]
+        self.assertEqual(phys["name"], "Physics")
+        self.assertEqual(phys["questions"], 3)
+        self.assertEqual([c["name"] for c in phys["chapters"]], ["Kinematics", "Optics"])
+        topics = {t["name"]: t["questions"] for t in phys["chapters"][0]["topics"]}
+        self.assertEqual(topics, {"Motion": 1, "Graphs": 1})
+
+    def test_paste_saves_test(self):
+        r = self.c.post("/api/tests/paste", json={"json": json.dumps(ANALYSIS_TEST)})
+        self.assertEqual(r.status_code, 201)
+        d = r.get_json()
+        self.assertEqual(d["test_name"], "Analysis Test")
+        self.assertTrue((config.TESTS_DIR / f"{d['test_id']}.json").is_file())
+        entry = self._entry(d["test_id"])
+        self.assertEqual(entry["subjects"], {"Physics": 3, "Chemistry": 1})
+
+    def test_paste_custom_name(self):
+        r = self.c.post("/api/tests/paste",
+                        json={"json": json.dumps(ANALYSIS_TEST), "name": "My Test"})
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.get_json()["test_name"], "My Test")
+
+    def test_paste_bad_json_422(self):
+        r = self.c.post("/api/tests/paste", json={"json": "{not json"})
+        self.assertEqual(r.status_code, 422)
+        self.assertIn("JSON", r.get_json()["error"])
+
+    def test_paste_empty_422(self):
+        r = self.c.post("/api/tests/paste", json={"json": "  "})
+        self.assertEqual(r.status_code, 422)
+
+    def test_paste_without_valid_questions_422(self):
+        r = self.c.post("/api/tests/paste",
+                        json={"json": json.dumps({"name": "X", "subjects": {"P": []}})})
+        self.assertEqual(r.status_code, 422)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -22,8 +22,9 @@ Open http://127.0.0.1:8080 on phone browser. Sirf `flask` chahiye (`pip install 
 **Tests (question banks)**
 - Koi bhi `.json` test import karo — ek ya multiple files, subject match case-insensitive ("Physics" = "physics").
 - Merge + dedupe (same `q` + same options), template ke count se cap, skip-report (kaunsa question kyun chhoda).
-- Available Tests screen: search, accordion detail, per-test preview (LaTeX/SVG render check), delete.
-- Import do jagah se: Setup screen (template ke saath, capped) aur Available Tests (bina template — subjects file se derive hote hain).
+- Available Tests screen: search, accordion detail, per-test preview (LaTeX/SVG render check), delete. Lamba test name poora wrap hota hai (truncate nahi).
+- Test card kholne par JSON se hi analysis: subject-wise question count, chapters (chapter tap → uske topics), aur paper ka level (easy/medium/hard ka count + %).
+- Import do jagah se: Setup screen (template ke saath, capped) aur Available Tests (bina template — subjects file se derive hote hain). Available Tests par **Paste** button se AI ka banaya JSON seedha paste karke save hota hai.
 
 **Attempts (test lena)**
 - Setup pe ek template + ek ya zyada tests chuno; multiple tests subject-wise merge hote hain.
@@ -108,11 +109,12 @@ Rules: `q` non-empty, 2–6 string options, `answer` ek capital letter options k
 | Method | Path | Kaam |
 |---|---|---|
 | GET | `/api/health` | `{ok: true}` |
-| GET | `/api/tests` | summaries (broken file pe `error` key) |
+| GET | `/api/tests` | summaries + `analysis` (subject/chapter/topic counts, difficulty split; broken file pe `error` key) |
 | GET | `/api/tests/<id>` | pura test |
 | DELETE | `/api/tests/<id>` | test delete |
 | GET | `/api/tests/<id>/validate?template=<tid>` | `{errors, warnings}` |
 | POST | `/api/tests/import` | multipart `files[]`, optional `template_id`, `name` |
+| POST | `/api/tests/paste` | `{json, name?}` — pasted JSON text se test save (201) |
 | GET | `/api/templates` | summaries |
 | GET/PUT/DELETE | `/api/templates/<id>` | `PUT` me `id="new"` = create |
 | GET/PUT | `/api/settings` | `{theme}` |
@@ -132,7 +134,7 @@ Mutation errors: `409` submitted / time_up / subject_locked / question_locked (l
 
     python -m unittest discover -s tests
 
-107 tests (1.0 s) — importer, validator, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), time attribution, retry, lock flow, skip-empty. Tests temp data dir use karte hain, real `data/` touch nahi hota.
+114 tests (1.1 s) — importer, validator, test analysis + paste route, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), time attribution, retry, lock flow, skip-empty. Tests temp data dir use karte hain, real `data/` touch nahi hota.
 
 ## Hard rules
 
