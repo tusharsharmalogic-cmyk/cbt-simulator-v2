@@ -41,6 +41,12 @@
   --primary-text: #10121a;
 }
 
+/* Native controls (checkbox, select, scrollbar) app theme ko follow karein,
+   phone ke system theme ko nahi. */
+:root { color-scheme: light dark; }
+[data-theme="light"] { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }
+
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {

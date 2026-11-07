@@ -722,14 +722,13 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
   cursor: pointer;
 }
 .multi-item:hover { background: var(--bg-alt, rgba(0,0,0,0.05)); }
-@media (prefers-color-scheme: dark) {
-  .multi-list { background: #222; border-color: #444; }
-  .multi-item:hover { background: rgba(255,255,255,0.1); }
-}
-@media (prefers-color-scheme: dark) {
-  .preview-filters { background: rgba(255,255,255,0.05); }
-  .filter-select { background: #222; color: #eee; border-color: #444; }
-}
+/* Theme variables use karte hain, taaki app ka light/dark theme follow ho
+   (phone ke system theme ko nahi). */
+.multi-list { background: var(--surface); color: var(--text); border-color: var(--border); }
+.multi-item { color: var(--text); }
+.multi-item:hover { background: var(--bg); }
+.preview-filters { background: var(--bg); }
+.filter-select { background: var(--surface); color: var(--text); border-color: var(--border); }
 
 /* Per-question metadata strip (preview screen) */
 .qmeta { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px 0; padding: 8px 0 0 0; align-items: center; }
