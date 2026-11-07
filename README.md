@@ -95,12 +95,13 @@ Test (`data/tests/<id>.json`):
         "Physics": [
           {"q": "SI unit of force?", "options": ["Joule", "Newton", "Watt", "Pascal"],
            "answer": "B", "solution": "Force ka SI unit newton hai.",
-           "svg": "<svg viewBox='0 0 100 60'>...</svg>"}
+           "svg": "<svg viewBox='0 0 100 60'>...</svg>",
+           "chapter": "Units and Dimensions", "topic": "SI units", "difficulty": "easy"}
         ]
       }
     }
 
-Rules: `q` non-empty, 2–6 string options, `answer` ek capital letter options ke andar, `solution` optional (warning), `svg` optional but valid `<svg>` with `viewBox`. Template (`data/templates/<id>.json`) me `name`, `timer_mode`, `total_minutes`, aur per subject `name`, `questions`, `marks`, `negative`, plus optional `lock_mode` / `per_question_seconds` / `subject_minutes`.
+Rules: `q` non-empty, 2–6 string options, `answer` ek capital letter options ke andar, `solution` optional (warning), `svg` optional but valid `<svg>` with `viewBox`, `chapter` / `topic` (optional strings) aur `difficulty` (optional: `easy` / `medium` / `hard`) performance analysis ke liye — missing ya galat value warning deti hai, test block nahi hota, analysis me "Unknown" ginta hai. Template (`data/templates/<id>.json`) me `name`, `timer_mode`, `total_minutes`, aur per subject `name`, `questions`, `marks`, `negative`, plus optional `lock_mode` / `per_question_seconds` / `subject_minutes`.
 
 ## API
 

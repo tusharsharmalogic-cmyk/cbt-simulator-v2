@@ -31,7 +31,10 @@ You are helping me build a multiple-choice test for my CBT simulator app. I will
         "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
         "answer": "B",
         "solution": "Short explanation (optional but preferred)",
-        "svg": "<svg viewBox='0 0 100 60'>...</svg>"
+        "svg": "<svg viewBox='0 0 100 60'>...</svg>",
+        "chapter": "Rotational Motion",
+        "topic": "Moment of inertia",
+        "difficulty": "medium"
       }
     ],
     "Chemistry": [ ... ]
@@ -46,6 +49,9 @@ Field rules:
 - `answer` (required): ONE capital letter matching the position of the correct option: "A" = first option, "B" = second, and so on. Single-correct MCQ only. If the book gives an answer key, use it. If it does not, solve the question yourself carefully.
 - `solution` (optional): one or two lines explaining the answer.
 - `svg` (optional): only when the question has a diagram — see SVG rules.
+- `chapter` (preferred): the chapter this question belongs to. Use the chapter name printed in the book (heading/page header); if it is not visible, use the standard syllabus chapter name. Spell it IDENTICALLY every time (always "Rotational Motion", never "Rotation" or "Rotational motion") — the app groups questions by exact text for chapter-wise analysis.
+- `topic` (preferred): the specific topic inside that chapter, 2-4 words (e.g. "Moment of inertia", "Rolling motion"). Reuse the same topic name for similar questions so each topic gets several questions; do NOT invent a new unique topic for every question.
+- `difficulty` (preferred): exactly one of `"easy"`, `"medium"`, `"hard"` (lowercase). Judge honestly: easy = direct formula/fact, medium = 2-3 steps, hard = multi-concept or lengthy calculation.
 - Every subject in `subjects` is a list of question objects. Keep each subject's questions under that subject only.
 - Do not repeat the same question twice.
 - Skip a question if the photo is too blurry to read it with confidence. Do NOT guess or invent missing text, options or numbers.
@@ -72,12 +78,13 @@ Field rules:
 
 ## Example (valid, copy this style)
 
-{"name":"Sample Test","subjects":{"Maths":[{"q":"Evaluate: $$\\int_0^1 x^2\\,dx$$","options":["$\\frac{1}{2}$","$\\frac{1}{3}$","$\\frac{1}{4}$","$1$"],"answer":"B","solution":"$\\left[\\frac{x^3}{3}\\right]_0^1=\\frac{1}{3}$"},{"q":"A triangle has sides $3, 4, 5$. Find its area.","svg":"<svg viewBox='0 0 120 100'><polygon points='10,80 110,80 10,20' fill='none' stroke='currentColor' stroke-width='2'/><text x='55' y='95' font-size='12' fill='currentColor'>4</text><text x='0' y='55' font-size='12' fill='currentColor'>3</text><text x='65' y='45' font-size='12' fill='currentColor'>5</text></svg>","options":["$6$","$12$","$10$","$8$"],"answer":"A","solution":"Right triangle: area $=\\frac{1}{2}\\times3\\times4=6$"}],"Physics":[{"q":"SI unit of force?","options":["Joule","Newton","Watt","Pascal"],"answer":"B"}]}}
+{"name":"Sample Test","subjects":{"Maths":[{"q":"Evaluate: $$\\int_0^1 x^2\\,dx$$","chapter":"Definite Integrals","topic":"Power rule","difficulty":"easy","options":["$\\frac{1}{2}$","$\\frac{1}{3}$","$\\frac{1}{4}$","$1$"],"answer":"B","solution":"$\\left[\\frac{x^3}{3}\\right]_0^1=\\frac{1}{3}$"},{"q":"A triangle has sides $3, 4, 5$. Find its area.","chapter":"Triangles","topic":"Area of right triangle","difficulty":"medium","svg":"<svg viewBox='0 0 120 100'><polygon points='10,80 110,80 10,20' fill='none' stroke='currentColor' stroke-width='2'/><text x='55' y='95' font-size='12' fill='currentColor'>4</text><text x='0' y='55' font-size='12' fill='currentColor'>3</text><text x='65' y='45' font-size='12' fill='currentColor'>5</text></svg>","options":["$6$","$12$","$10$","$8$"],"answer":"A","solution":"Right triangle: area $=\\frac{1}{2}\\times3\\times4=6$"}],"Physics":[{"q":"SI unit of force?","chapter":"Units and Dimensions","topic":"SI units","difficulty":"easy","options":["Joule","Newton","Watt","Pascal"],"answer":"B"}]}}
 
 ## Before you reply, check
 
 - JSON is valid and every backslash is doubled.
 - Every `answer` is one capital letter within the number of options.
+- Every question has `chapter`, `topic` and `difficulty` (`easy` / `medium` / `hard`), and the same chapter/topic is spelled identically everywhere.
 - No question numbers or option letters inside `q` / `options`.
 - Subject names match the list I gave.
 - Only the JSON is in the reply.

@@ -12,6 +12,9 @@ import config
 # Test id = filename (bina .json). Sirf safe characters, taaki path traversal na ho.
 _ID_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
 
+# Question ki optional difficulty ki allowed values
+DIFFICULTIES = ("easy", "medium", "hard")
+
 
 def _path_for(test_id):
     if not _ID_RE.match(test_id or ""):
@@ -184,6 +187,18 @@ def _validate_question(q, prefix, errors, warnings):
     # solution warning
     if not q.get("solution"):
         warnings.append(f"{prefix}: solution missing (allowed but helpful)")
+
+    # analysis fields (optional): chapter, topic, difficulty
+    for key in ("chapter", "topic"):
+        v = q.get(key)
+        if v is None:
+            continue
+        if not isinstance(v, str) or not v.strip():
+            warnings.append(f"{prefix}: {key} khali ya string nahi — analysis me 'Unknown' ginega")
+    diff = q.get("difficulty")
+    if diff is not None:
+        if not isinstance(diff, str) or diff.strip().lower() not in DIFFICULTIES:
+            warnings.append(f"{prefix}: difficulty '{diff}' valid nahi (easy/medium/hard) — 'Unknown' ginega")
 
 
 def _check_svg(svg):

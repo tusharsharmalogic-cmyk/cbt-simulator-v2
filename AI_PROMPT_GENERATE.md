@@ -34,7 +34,10 @@ You are an expert exam-question writer. Create NEW multiple-choice questions for
         "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
         "answer": "B",
         "solution": "Short explanation",
-        "svg": "<svg viewBox='0 0 100 60'>...</svg>"
+        "svg": "<svg viewBox='0 0 100 60'>...</svg>",
+        "chapter": "Rotational Motion",
+        "topic": "Moment of inertia",
+        "difficulty": "medium"
       }
     ],
     "Chemistry": [ ... ]
@@ -49,6 +52,9 @@ Field rules:
 - `answer` (required): ONE capital letter matching the position of the correct option: "A" = first option, "B" = second, and so on. Single-correct MCQ only.
 - `solution` (preferred): required for every question. Keep simple solutions to one to three lines. For questions needing more explanation, give the main concept first, then clear necessary steps; do not forcefully shorten or omit important reasoning.
 - `svg` (optional): only when the question truly needs a diagram — see SVG rules.
+- `chapter` (preferred): the chapter this question belongs to, using the standard syllabus chapter name. Spell it IDENTICALLY every time (always "Rotational Motion", never "Rotation" or "Rotational motion") — the app groups questions by exact text for chapter-wise analysis.
+- `topic` (preferred): the specific topic inside that chapter, 2-4 words (e.g. "Moment of inertia", "Rolling motion"). Reuse the same topic name for similar questions so each topic gets several questions; do NOT invent a new unique topic for every question.
+- `difficulty` (preferred): exactly one of `"easy"`, `"medium"`, `"hard"` (lowercase). Follow the difficulty mix I give under Test details. Easy = direct formula/fact, medium = 2-3 steps, hard = multi-concept or lengthy calculation.
 - Every subject in `subjects` is a list of question objects. Keep each subject's questions under that subject only.
 
 ## Maths, formulas and symbols (LaTeX)
@@ -73,7 +79,7 @@ Field rules:
 
 ## Example (valid, copy this style)
 
-{"name":"Sample Test","subjects":{"Maths":[{"q":"Evaluate: $$\\int_0^1 x^2\\,dx$$","options":["$\\frac{1}{2}$","$\\frac{1}{3}$","$\\frac{1}{4}$","$1$"],"answer":"B","solution":"$\\left[\\frac{x^3}{3}\\right]_0^1=\\frac{1}{3}$"},{"q":"A triangle has sides $3, 4, 5$. Find its area.","svg":"<svg viewBox='0 0 120 100'><polygon points='10,80 110,80 10,20' fill='none' stroke='currentColor' stroke-width='2'/><text x='55' y='95' font-size='12' fill='currentColor'>4</text><text x='0' y='55' font-size='12' fill='currentColor'>3</text><text x='65' y='45' font-size='12' fill='currentColor'>5</text></svg>","options":["$6$","$12$","$10$","$8$"],"answer":"A","solution":"Right triangle: area $=\\frac{1}{2}\\times3\\times4=6$"}],"Physics":[{"q":"SI unit of force?","options":["Joule","Newton","Watt","Pascal"],"answer":"B","solution":"Force $F=ma$, so unit is kg m/s$^2$ = newton."}]}}
+{"name":"Sample Test","subjects":{"Maths":[{"q":"Evaluate: $$\\int_0^1 x^2\\,dx$$","chapter":"Definite Integrals","topic":"Power rule","difficulty":"easy","options":["$\\frac{1}{2}$","$\\frac{1}{3}$","$\\frac{1}{4}$","$1$"],"answer":"B","solution":"$\\left[\\frac{x^3}{3}\\right]_0^1=\\frac{1}{3}$"},{"q":"A triangle has sides $3, 4, 5$. Find its area.","chapter":"Triangles","topic":"Area of right triangle","difficulty":"medium","svg":"<svg viewBox='0 0 120 100'><polygon points='10,80 110,80 10,20' fill='none' stroke='currentColor' stroke-width='2'/><text x='55' y='95' font-size='12' fill='currentColor'>4</text><text x='0' y='55' font-size='12' fill='currentColor'>3</text><text x='65' y='45' font-size='12' fill='currentColor'>5</text></svg>","options":["$6$","$12$","$10$","$8$"],"answer":"A","solution":"Right triangle: area $=\\frac{1}{2}\\times3\\times4=6$"}],"Physics":[{"q":"SI unit of force?","chapter":"Units and Dimensions","topic":"SI units","difficulty":"easy","options":["Joule","Newton","Watt","Pascal"],"answer":"B","solution":"Force $F=ma$, so unit is kg m/s$^2$ = newton."}]}}
 
 ## Before you reply, check
 
@@ -83,6 +89,7 @@ Field rules:
 - Correct answers are spread across A, B, C, D.
 - "All of the above" / "None of the above" are used only when genuinely necessary.
 - Every question has a solution that is concise when possible but includes all necessary reasoning.
+- Every question has `chapter`, `topic` and `difficulty` (`easy` / `medium` / `hard`), and the same chapter/topic is spelled identically everywhere.
 - No question numbers or option letters inside `q` / `options`.
 - Only the JSON is in the reply.
 
