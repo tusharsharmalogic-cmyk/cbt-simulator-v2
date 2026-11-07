@@ -962,8 +962,6 @@ async function showAvailableTests() {
     return card;
   }
 
-  renderList();
-
   // Import button; seedha file manager, direct save
   const importBtn = el('button', 'import-mini', '');
   importBtn.type = 'button';
@@ -1122,6 +1120,7 @@ async function showAvailableTests() {
     ta.focus();
   }
 
+  renderList();
   show('Available Tests', wrap);
   backBtn.hidden = false;
 }
