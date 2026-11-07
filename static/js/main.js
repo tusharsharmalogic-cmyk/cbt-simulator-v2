@@ -582,7 +582,6 @@ async function showPreview(id) {
   try { state.test = await api.test(id); }
   catch (e) { show('Error', el('p', 'error', e.message)); return; }
   const wrap = el('div', 'stack');
-  wrap.append(el('p', 'muted', 'Preview: LaTeX, SVG aur options render check.'));
   Object.entries(state.test.subjects).forEach(([subject, qs]) => {
     wrap.append(el('h2', 'subject-title', subject));
     qs.forEach((q, i) => wrap.append(renderQuestion(q, i + 1, { showSolution: true })));
