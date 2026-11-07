@@ -794,49 +794,132 @@ async function showPreview(id) {
     return Array.from(map.values());
   }
 
+  // Split dialog: default = har topic ka alag test. Kai topics tap karke
+  // select karo -> "Combine" se unka ek hi test ban jata hai.
   function openSplitDialog() {
     if (currentFiltered.length === 0) return;
-    const groups = previewGroups();
+    const keyOf = (s, c, t) => s + '||' + c + '||' + t;
+    const topicGroups = previewGroups().map(g => ({ ...g, key: keyOf(g.subject, g.chapter, g.topic) }));
+    const custom = []; // { name, keys: Set, count }
+    const picked = new Set();
+
     const sheet = el('div', 'sheet');
     sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
     const panel = el('div', 'sheet-panel');
     panel.append(el('div', 'sheet-handle'));
     panel.append(el('h3', '', 'Split ' + currentFiltered.length + ' questions'));
-    panel.append(el('div', 'muted small', 'Selected questions subject + chapter + topic ke hisaab se group hokar alag tests banenge. Original test delete NAHI hoga.'));
-    panel.append(el('div', 'tc-section-title', groups.length + ' naye tests banenge'));
-    const preview = el('div', 'split-preview');
-    groups.forEach(g => {
-      const row = el('div', 'split-row');
-      row.append(el('div', 'split-name', g.subject + ' - ' + g.chapter + ' - ' + g.topic));
-      row.append(el('div', 'muted small', g.count + ' Q'));
-      preview.append(row);
-    });
-    panel.append(preview);
+    panel.append(el('div', 'muted small', 'Default: har topic ka alag test. 2-4 topics ek test me chahiye to unhe tap karke select karo aur "Combine" dabao. Original test delete NAHI hoga.'));
+    const heading = el('div', 'tc-section-title', '');
+    panel.append(heading);
+    const listBox = el('div', 'split-preview');
+    panel.append(listBox);
+
+    const nameInput = document.createElement('input');
+    nameInput.className = 'input';
+    nameInput.type = 'text';
+    nameInput.placeholder = 'Combined test ka naam (optional)';
+    const combineBtn = el('button', 'btn ghost', 'Combine');
+    combineBtn.type = 'button';
+    const combineRow = el('div', 'actions-row');
+    combineRow.append(combineBtn);
+    panel.append(nameInput, combineRow);
+
     const row2 = el('div', 'actions-row');
     const cancel = el('button', 'btn ghost', 'Cancel');
     cancel.type = 'button';
     cancel.addEventListener('click', () => sheet.remove());
-    const okBtn = el('button', 'btn', 'Create ' + groups.length + ' tests');
+    const okBtn = el('button', 'btn', '');
     okBtn.type = 'button';
+    row2.append(cancel, okBtn);
+    panel.append(row2);
+
+    const usedKeys = () => {
+      const s = new Set();
+      custom.forEach(c => c.keys.forEach(k => s.add(k)));
+      return s;
+    };
+
+    function render() {
+      listBox.replaceChildren();
+      const used = usedKeys();
+      custom.forEach((c, ci) => {
+        const row = el('div', 'split-row');
+        row.style.borderLeft = '3px solid var(--accent, #4a7dff)';
+        const nm = el('div', 'split-name', '🔗 ' + c.name + ' (' + c.keys.size + ' topics)');
+        row.append(nm, el('div', 'muted small', c.count + ' Q'));
+        const x = el('button', 'btn ghost small', '✕');
+        x.type = 'button';
+        x.addEventListener('click', () => { custom.splice(ci, 1); render(); });
+        row.append(x);
+        listBox.append(row);
+      });
+      topicGroups.filter(g => !used.has(g.key)).forEach(g => {
+        const row = el('div', 'split-row');
+        row.style.cursor = 'pointer';
+        const on = picked.has(g.key);
+        row.style.background = on ? 'rgba(74,125,255,0.15)' : '';
+        row.append(el('div', 'split-name', (on ? '☑ ' : '☐ ') + g.subject + ' - ' + g.chapter + ' - ' + g.topic));
+        row.append(el('div', 'muted small', g.count + ' Q'));
+        row.addEventListener('click', () => {
+          if (picked.has(g.key)) picked.delete(g.key); else picked.add(g.key);
+          render();
+        });
+        listBox.append(row);
+      });
+      const total = custom.length + topicGroups.filter(g => !used.has(g.key)).length;
+      heading.textContent = total + ' naye tests banenge';
+      okBtn.textContent = 'Create ' + total + ' tests';
+      combineBtn.disabled = picked.size < 2;
+      combineBtn.textContent = picked.size >= 2 ? 'Combine ' + picked.size + ' topics' : 'Combine (2+ topics select karo)';
+    }
+
+    combineBtn.addEventListener('click', () => {
+      if (picked.size < 2) return;
+      const sel = topicGroups.filter(g => picked.has(g.key));
+      const name = nameInput.value.trim() || sel.map(g => g.topic).join(' + ');
+      custom.push({ name, keys: new Set(picked), count: sel.reduce((a, g) => a + g.count, 0) });
+      picked.clear();
+      nameInput.value = '';
+      render();
+    });
+
     okBtn.addEventListener('click', async () => {
+      const used = usedKeys();
+      const groupsPayload = [];
+      custom.forEach(c => {
+        groupsPayload.push({
+          name: c.name,
+          questions: currentFiltered
+            .filter(it => c.keys.has(keyOf(it.subject, it.chapter || 'Unknown', it.topic || 'Unknown')))
+            .map(it => ({ subject: it.subject, index: it.index })),
+        });
+      });
+      topicGroups.filter(g => !used.has(g.key)).forEach(g => {
+        groupsPayload.push({
+          name: g.subject + ' - ' + g.chapter + ' - ' + g.topic,
+          questions: currentFiltered
+            .filter(it => keyOf(it.subject, it.chapter || 'Unknown', it.topic || 'Unknown') === g.key)
+            .map(it => ({ subject: it.subject, index: it.index })),
+        });
+      });
+      const label = okBtn.textContent;
       okBtn.disabled = true;
       okBtn.textContent = 'Splitting...';
       try {
-        const questions = currentFiltered.map(it => ({ subject: it.subject, index: it.index }));
-        const r = await api.splitTest(state.previewId, questions);
+        const r = await api.splitTestGroups(state.previewId, groupsPayload);
         sheet.remove();
         alert(r.count + ' naye tests ban gaye. Available Tests screen pe check karo.');
         location.hash = '#/available';
       } catch (e) {
         alert('Split fail: ' + e.message);
         okBtn.disabled = false;
-        okBtn.textContent = 'Create ' + groups.length + ' tests';
+        okBtn.textContent = label;
       }
     });
-    row2.append(cancel, okBtn);
-    panel.append(row2);
+
     sheet.append(panel);
     document.body.append(sheet);
+    render();
   }
 
   subjFilter.setItems(subjects);
@@ -973,18 +1056,35 @@ async function showAvailableTests() {
     const card = el('div', 'test-card');
     const head = el('div', 'test-card-head');
     
-    const cbWrap = el('div', 'tc-check-wrap');
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.className = 'tc-check';
-    cb.addEventListener('change', (e) => {
-      e.stopPropagation(); // card toggle na ho
-      if (cb.checked) selectedIds.add(t.id);
+    // Long-press (press & hold) se select; selection mode me tap se toggle
+    const setSelected = (on) => {
+      if (on) selectedIds.add(t.id);
       else selectedIds.delete(t.id);
+      card.classList.toggle('selected', on);
       updateMergeBtn();
+    };
+    let pressTimer = null;
+    let longPressed = false;
+    let startX = 0, startY = 0;
+    const cancelPress = () => { clearTimeout(pressTimer); pressTimer = null; };
+    head.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('button')) return;
+      longPressed = false;
+      startX = e.clientX; startY = e.clientY;
+      cancelPress();
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        longPressed = true;
+        setSelected(!selectedIds.has(t.id));
+        if (navigator.vibrate) { try { navigator.vibrate(30); } catch {} }
+      }, 450);
     });
-    cbWrap.append(cb);
-    head.append(cbWrap);
+    head.addEventListener('pointermove', (e) => {
+      if (pressTimer && (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10)) cancelPress();
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => head.addEventListener(ev, cancelPress));
+    head.addEventListener('contextmenu', (e) => e.preventDefault());
+    head.classList.add('tc-head-press');
 
     head.append(el('span', 'tc-icon', '📄'));
     const main = el('div', 'tc-main');
@@ -1002,7 +1102,9 @@ async function showAvailableTests() {
     const toggle = el('span', 'tc-toggle', '▾');
     head.append(toggle);
     head.addEventListener('click', (e) => {
-      if (e.target.closest('button') || e.target.closest('.tc-check-wrap')) return;
+      if (e.target.closest('button')) return;
+      if (longPressed) { longPressed = false; return; } // long-press ke baad ka click ignore
+      if (selectedIds.size > 0) { setSelected(!selectedIds.has(t.id)); return; } // selection mode: tap = toggle
       card.classList.toggle('open');
     });
     card.append(head);

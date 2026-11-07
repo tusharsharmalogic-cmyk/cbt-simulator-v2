@@ -97,6 +97,46 @@ def split_test(test_id):
         return jsonify(error=err), code
 
     body = request.get_json(silent=True) or {}
+
+    # Custom groups: {"groups": [{"name": "...", "questions": [{"subject","index"}, ...]}]}
+    # Ek group = ek naya test (kai topics/chapters ek saath ho sakte hain).
+    custom = body.get("groups")
+    if isinstance(custom, list) and custom:
+        csubs = t.get("subjects") or {}
+        made = []
+        for g in custom:
+            if not isinstance(g, dict):
+                continue
+            gname = g.get("name") if isinstance(g.get("name"), str) else ""
+            gname = gname.strip()
+            grefs = g.get("questions")
+            if not isinstance(grefs, list):
+                continue
+            by_subj = {}
+            for r in grefs:
+                if not isinstance(r, dict):
+                    continue
+                sname = r.get("subject")
+                idx = r.get("index")
+                if not isinstance(sname, str) or not isinstance(idx, int) or isinstance(idx, bool):
+                    continue
+                cq = csubs.get(sname) or []
+                if not (0 <= idx < len(cq)):
+                    continue
+                by_subj.setdefault(sname, []).append(cq[idx])
+            if not by_subj:
+                continue
+            if not gname:
+                gname = " + ".join(by_subj.keys())
+            new_id, saved = importer.save_imported_test(by_subj, gname)
+            made.append({
+                "id": new_id, "name": saved,
+                "count": sum(len(v) for v in by_subj.values()),
+            })
+        if not made:
+            return jsonify(error="Split karne layak questions nahi mile"), 422
+        return jsonify(ok=True, count=len(made), created=made)
+
     refs = body.get("questions")
     if not isinstance(refs, list) or not refs:
         return jsonify(error="questions list (non-empty) chahiye"), 422

@@ -608,19 +608,18 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
   letter-spacing: .5px; color: var(--muted);
   margin: 14px 0 6px;
 }
-/* Available tests: multi-select checkbox */
-.tc-check-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px 0 0;
-  flex-shrink: 0;
+/* Available tests: long-press multi-select */
+.tc-head-press {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
-.tc-check {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-  accent-color: var(--accent, #4a7dff);
+.test-card { transition: border-color .15s, background .15s, box-shadow .15s; }
+.test-card.selected {
+  border-color: var(--accent, #4a7dff);
+  background: rgba(74,125,255,0.12);
+  box-shadow: 0 0 0 2px rgba(74,125,255,0.35);
 }
 .merge-mini {
   background: rgba(74,125,255,0.12);
