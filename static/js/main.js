@@ -603,6 +603,75 @@ async function showPreview(id) {
 
   const wrap = el('div', 'stack');
 
+  // Filter Bar
+  const filterWrap = el('div', 'preview-filters');
+  
+  const subjSelect = el('select', 'input filter-select');
+  const chapSelect = el('select', 'input filter-select');
+  const topicSelect = el('select', 'input filter-select');
+  
+  const subjects = Object.keys(state.test.subjects);
+  subjSelect.append(new Option('All Subjects', ''));
+  subjects.forEach(s => subjSelect.append(new Option(s, s)));
+  
+  function updateChapters() {
+    const subj = subjSelect.value;
+    chapSelect.replaceChildren(new Option('All Chapters', ''));
+    topicSelect.replaceChildren(new Option('All Topics', ''));
+    
+    const chaptersSet = new Set();
+    const topicsSet = new Set();
+    
+    const processQs = (qs) => {
+      qs.forEach(q => {
+        if (typeof q.chapter === 'string' && q.chapter.trim()) chaptersSet.add(q.chapter.trim());
+        if (typeof q.topic === 'string' && q.topic.trim()) topicsSet.add(q.topic.trim());
+      });
+    };
+
+    if (subj) {
+      processQs(state.test.subjects[subj] || []);
+    } else {
+      subjects.forEach(s => processQs(state.test.subjects[s] || []));
+    }
+    
+    Array.from(chaptersSet).sort().forEach(c => chapSelect.append(new Option(c, c)));
+    Array.from(topicsSet).sort().forEach(t => topicSelect.append(new Option(t, t)));
+  }
+
+  function updateTopics() {
+    const subj = subjSelect.value;
+    const chap = chapSelect.value;
+    topicSelect.replaceChildren(new Option('All Topics', ''));
+    
+    const topicsSet = new Set();
+    
+    const processQs = (qs) => {
+      qs.forEach(q => {
+        if (chap && (q.chapter || '').trim() !== chap) return;
+        if (typeof q.topic === 'string' && q.topic.trim()) topicsSet.add(q.topic.trim());
+      });
+    };
+
+    if (subj) {
+      processQs(state.test.subjects[subj] || []);
+    } else {
+      subjects.forEach(s => processQs(state.test.subjects[s] || []));
+    }
+    
+    Array.from(topicsSet).sort().forEach(t => topicSelect.append(new Option(t, t)));
+  }
+
+  subjSelect.addEventListener('change', () => { updateChapters(); renderFilteredList(); });
+  chapSelect.addEventListener('change', () => { updateTopics(); renderFilteredList(); });
+  topicSelect.addEventListener('change', renderFilteredList);
+
+  filterWrap.append(subjSelect, chapSelect, topicSelect);
+  wrap.append(filterWrap);
+
+  const listWrap = el('div', 'stack');
+  wrap.append(listWrap);
+
   async function removeQuestion(subject, index) {
     const label = `"${subject}" Q${index + 1}`;
     if (!confirm(`${label} ko is test se hata dena hai? (JSON se permanently delete hoga)`)) return;
@@ -613,13 +682,43 @@ async function showPreview(id) {
     } catch (e) { alert('Hata nahi paye: ' + e.message); }
   }
 
-  Object.entries(state.test.subjects).forEach(([subject, qs]) => {
-    wrap.append(el('h2', 'subject-title', subject));
-    qs.forEach((q, i) => wrap.append(renderQuestion(q, i + 1, {
-      showSolution: true,
-      meta: { subject, index: i, onRemove: removeQuestion },
-    })));
-  });
+  function renderFilteredList() {
+    listWrap.replaceChildren();
+    const sFilter = subjSelect.value;
+    const cFilter = chapSelect.value;
+    const tFilter = topicSelect.value;
+    let hasAny = false;
+
+    Object.entries(state.test.subjects).forEach(([subject, qs]) => {
+      if (sFilter && sFilter !== subject) return;
+
+      const filtered = qs.map((q, i) => ({ q, i })).filter(({ q }) => {
+        if (cFilter && (q.chapter || '').trim() !== cFilter) return false;
+        if (tFilter && (q.topic || '').trim() !== tFilter) return false;
+        return true;
+      });
+
+      if (filtered.length === 0) return;
+      hasAny = true;
+
+      listWrap.append(el('h2', 'subject-title', subject + ` (${filtered.length} Qs)`));
+      filtered.forEach(({ q, i }) => {
+        listWrap.append(renderQuestion(q, i + 1, {
+          showSolution: true,
+          meta: { subject, index: i, onRemove: removeQuestion },
+        }));
+      });
+    });
+
+    if (!hasAny) {
+      listWrap.append(el('p', 'muted', 'Is filter me koi question nahi mila.'));
+    }
+  }
+
+  // Init
+  updateChapters();
+  renderFilteredList();
+
   show(state.test.name, wrap);
 }
 
