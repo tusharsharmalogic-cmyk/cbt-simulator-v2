@@ -22,7 +22,7 @@ Open http://127.0.0.1:8080 on phone browser. Sirf `flask` chahiye (`pip install 
 **Tests (question banks)**
 - Koi bhi `.json` test import karo — ek ya multiple files, subject match case-insensitive ("Physics" = "physics").
 - Merge + dedupe (same `q` + same options), template ke count se cap, skip-report (kaunsa question kyun chhoda).
-- Available Tests screen: search, accordion detail, per-test preview (LaTeX/SVG render check), delete. Lamba test name poora wrap hota hai (truncate nahi).
+- Available Tests screen: accordion detail, per-test preview (LaTeX/SVG render check), delete. Lamba test name poora wrap hota hai (truncate nahi).
 - Test card kholne par JSON se hi analysis: subject-wise question count, chapters (chapter tap → uske topics), aur paper ka level (easy/medium/hard ka count + %).
 - Import do jagah se: Setup screen (template ke saath, capped) aur Available Tests (bina template — subjects file se derive hote hain). Available Tests par **Paste** button se AI ka banaya JSON seedha paste karke save hota hai.
 

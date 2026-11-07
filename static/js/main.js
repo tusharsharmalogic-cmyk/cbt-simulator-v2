@@ -648,32 +648,22 @@ async function showAvailableTests() {
 
   const wrap = el('div', 'available-screen');
 
-  // Search bar (fixed header area)
-  const searchBar = el('div', 'search-bar');
-  searchBar.append(el('span', '', '🔍'));
-  const searchInput = document.createElement('input');
-  searchInput.placeholder = 'Search tests...';
-  searchInput.type = 'text';
-  searchBar.append(searchInput);
   const topRow = el('div', 'avail-top');
-  topRow.append(searchBar);
   wrap.append(topRow);
 
   // Scrollable list
   const listWrap = el('div', 'available-list');
   wrap.append(listWrap);
 
-  function renderList(filter) {
+  function renderList() {
     listWrap.replaceChildren();
-    const q = (filter || '').toLowerCase().trim();
-    const visible = tests.filter(t => !t.error && (!q || (t.name || '').toLowerCase().includes(q)));
+    const visible = tests.filter(t => !t.error);
     if (!visible.length) {
-      listWrap.append(el('p', 'muted', tests.length ? 'Koi test is search se match nahi hua.' : 'Koi test nahi mila. Import karo.'));
+      listWrap.append(el('p', 'muted', 'Koi test nahi hai. Import ya Paste karo.'));
       return;
     }
     visible.forEach(t => listWrap.append(testAccordion(t)));
   }
-  searchInput.addEventListener('input', () => renderList(searchInput.value));
 
   // Paper ka overall difficulty level: har level ka count + % bar.
   function difficultyBlock(analysis) {
@@ -802,9 +792,9 @@ async function showAvailableTests() {
     return card;
   }
 
-  renderList('');
+  renderList();
 
-  // Import button: search bar ke right me; seedha file manager, direct save
+  // Import button; seedha file manager, direct save
   const importBtn = el('button', 'import-mini', '');
   importBtn.type = 'button';
   importBtn.append(el('span', 'import-cta-ico', '⬆'), el('span', 'import-cta-txt', 'Import'));

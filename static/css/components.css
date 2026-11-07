@@ -537,24 +537,6 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
 }
 
 /* ===== Available tests (accordion) ===== */
-.search-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  margin-bottom: 14px;
-}
-.search-bar input {
-  flex: 1;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  font-size: 15px;
-  outline: none;
-}
 .test-card {
   border-radius: 14px;
   border: 1px solid var(--border);
@@ -723,17 +705,11 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
 .td-count { min-width: 50px; text-align: right; font-variant-numeric: tabular-nums; }
 .td-marks { font-size: 11px; color: var(--muted); }
 
-/* Search + Import row (available tests) */
+/* Import / Paste row (available tests) — desktop par right aligned,
+   mobile par dono button barabar width me poori row bharte hain. */
 .available-screen { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; overflow-x: hidden; }
-.avail-top { display: flex; align-items: stretch; gap: 8px; flex: 0 0 auto; width: 100%; max-width: 100%; box-sizing: border-box; }
-.avail-top .search-bar { flex: 1 1 0; min-width: 0; width: auto; margin: 0; padding: 8px 10px; gap: 6px; box-sizing: border-box; overflow: hidden; }
-.avail-top .search-bar input { flex: 1 1 auto; width: 100%; min-width: 60px; font-size: 15px; color: var(--text, inherit); }
-.avail-top .search-bar > span { flex: 0 0 auto; }
-/* Chhoti screen: search alag line par, Import/Paste barabar width me —
-   warna teen items ek row me fit nahi hote aur Paste button kinare se bahar chala jata hai. */
+.avail-top { display: flex; align-items: stretch; justify-content: flex-end; gap: 8px; flex: 0 0 auto; width: 100%; max-width: 100%; box-sizing: border-box; }
 @media (max-width: 480px) {
-  .avail-top { flex-wrap: wrap; }
-  .avail-top .search-bar { flex: 1 1 100%; }
   .avail-top .import-mini { flex: 1 1 0; justify-content: center; }
 }
 .import-mini {
@@ -772,7 +748,6 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
   height: calc(100vh - 80px);
   min-height: 0;
 }
-.available-screen .search-bar { flex: 0 0 auto; margin-bottom: 0; }
 .available-list {
   flex: 1 1 auto;
   min-height: 0;
