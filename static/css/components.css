@@ -729,6 +729,13 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
 .avail-top .search-bar { flex: 1 1 0; min-width: 0; width: auto; margin: 0; padding: 8px 10px; gap: 6px; box-sizing: border-box; overflow: hidden; }
 .avail-top .search-bar input { flex: 1 1 auto; width: 100%; min-width: 60px; font-size: 15px; color: var(--text, inherit); }
 .avail-top .search-bar > span { flex: 0 0 auto; }
+/* Chhoti screen: search alag line par, Import/Paste barabar width me —
+   warna teen items ek row me fit nahi hote aur Paste button kinare se bahar chala jata hai. */
+@media (max-width: 480px) {
+  .avail-top { flex-wrap: wrap; }
+  .avail-top .search-bar { flex: 1 1 100%; }
+  .avail-top .import-mini { flex: 1 1 0; justify-content: center; }
+}
 .import-mini {
   flex: 0 0 auto;
   display: inline-flex; align-items: center; gap: 6px;
