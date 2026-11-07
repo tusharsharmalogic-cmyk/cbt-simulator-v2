@@ -437,8 +437,13 @@ function startTicker() {
     }
     if (t <= 0 && !testCtl.submitting) {
       testCtl.submitting = true;
-      refreshAttempt().finally(() => {
-        if (state.attempt && state.attempt.status === 'submitted') showAttempt(testCtl.attemptId);
+      // Deadline tak current question par jo time gaya wo flush karo, phir finalize.
+      const cur = state.attempt && state.attempt.current;
+      const flush = cur ? sendVisit(cur.subject, cur.index) : Promise.resolve({ ok: false });
+      flush.finally(() => {
+        refreshAttempt().finally(() => {
+          if (state.attempt && state.attempt.status === 'submitted') showAttempt(testCtl.attemptId);
+        });
       });
     }
   }, 500);

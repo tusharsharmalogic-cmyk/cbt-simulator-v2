@@ -129,7 +129,7 @@ Mutation errors: `409` submitted / time_up / subject_locked / question_locked (l
 
     python -m unittest discover -s tests
 
-101 tests (0.9 s) — importer, validator, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), time attribution, lock flow, skip-empty. Tests temp data dir use karte hain, real `data/` touch nahi hota.
+102 tests (0.9 s) — importer, validator, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), time attribution, lock flow, skip-empty. Tests temp data dir use karte hain, real `data/` touch nahi hota.
 
 ## Hard rules
 

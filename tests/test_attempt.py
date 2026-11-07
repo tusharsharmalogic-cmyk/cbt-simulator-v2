@@ -182,6 +182,19 @@ class TimeAccuracyTest(Base):
         saved = attempt_store.load(aid)
         self.assertEqual(saved["responses"]["P"][0]["time_spent"], 19.5)
 
+    def test_time_up_visit_flushes_last_chunk(self):
+        aid = self._create(SAMPLE)
+        self._patch_file(aid, start_time=time.time() - 7200)
+        r = self.c.post(f"/api/attempts/{aid}/visit",
+                        json={"subject": "P", "index": 0, "spent": 9,
+                              "from_subject": "P", "from_index": 0})
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(r.get_json()["error"], "time_up")
+        saved = attempt_store.load(aid)
+        self.assertEqual(saved["status"], "submitted")
+        self.assertEqual(saved["responses"]["P"][0]["time_spent"], 9)
+        self.assertEqual(saved["result"]["subjects"][0]["rows"][0]["time_spent"], 9)
+
     def test_visit_after_submit_leaves_result_untouched(self):
         aid = self._create(SAMPLE)
         self.c.post(f"/api/attempts/{aid}/submit")
