@@ -745,8 +745,10 @@ async function showPreview(id) {
     if (!hasAny) {
       listWrap.append(el('p', 'muted', 'Is filter me koi question nahi mila.'));
     }
-    // Filter apply hone ke baad naye DOM elements pe MathJax chalao
-    if (window.typeset) typeset(listWrap);
+    // Filter apply hone ke baad naye DOM elements pe MathJax chalao.
+    // Sirf tab chalao jab element screen pe attach ho chuka ho, warna
+    // MathJax SVG ko galat width/height ke saath render kar deta hai.
+    if (window.typeset && listWrap.isConnected) typeset(listWrap);
   }
 
   // Init
