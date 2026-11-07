@@ -745,6 +745,8 @@ async function showPreview(id) {
     if (!hasAny) {
       listWrap.append(el('p', 'muted', 'Is filter me koi question nahi mila.'));
     }
+    // Filter apply hone ke baad naye DOM elements pe MathJax chalao
+    if (window.typeset) typeset(listWrap);
   }
 
   // Init
