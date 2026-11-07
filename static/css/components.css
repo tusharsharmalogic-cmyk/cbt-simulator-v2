@@ -629,6 +629,35 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
   color: var(--text, inherit);
   border: 1px solid var(--border, #ccc);
 }
+.multi-select { position: relative; flex: 1; min-width: 100px; display: flex; }
+.multi-btn { width: 100%; text-align: left; cursor: pointer; }
+.multi-list {
+  position: absolute;
+  top: 100%; left: 0; right: 0;
+  margin-top: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #ccc);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 50;
+  padding: 4px;
+}
+.multi-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.multi-item:hover { background: var(--bg-alt, rgba(0,0,0,0.05)); }
+@media (prefers-color-scheme: dark) {
+  .multi-list { background: #222; border-color: #444; }
+  .multi-item:hover { background: rgba(255,255,255,0.1); }
+}
 @media (prefers-color-scheme: dark) {
   .preview-filters { background: rgba(255,255,255,0.05); }
   .filter-select { background: #222; color: #eee; border-color: #444; }

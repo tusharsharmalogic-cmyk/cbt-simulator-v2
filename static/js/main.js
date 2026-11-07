@@ -608,24 +608,44 @@ async function showPreview(id) {
   
   const subjSelect = el('select', 'input filter-select');
   const chapSelect = el('select', 'input filter-select');
-  const topicSelect = el('select', 'input filter-select');
   
+  // Custom multi-select for topics
+  const topicWrap = el('div', 'multi-select');
+  const topicBtn = el('button', 'input filter-select multi-btn', 'All Topics');
+  topicBtn.type = 'button';
+  const topicList = el('div', 'multi-list');
+  topicList.hidden = true;
+  
+  topicBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    topicList.hidden = !topicList.hidden;
+  });
+  
+  // Close dropdown when clicking outside
+  document.addEventListener('click', () => { topicList.hidden = true; });
+  topicWrap.addEventListener('click', (e) => e.stopPropagation());
+  
+  topicWrap.append(topicBtn, topicList);
+
   const subjects = Object.keys(state.test.subjects);
   subjSelect.append(new Option('All Subjects', ''));
   subjects.forEach(s => subjSelect.append(new Option(s, s)));
   
+  function updateTopicBtnText() {
+    const checked = Array.from(topicList.querySelectorAll('input:checked')).map(cb => cb.value);
+    if (checked.length === 0) topicBtn.textContent = 'All Topics';
+    else if (checked.length === 1) topicBtn.textContent = checked[0];
+    else topicBtn.textContent = checked.length + ' Topics selected';
+  }
+
   function updateChapters() {
     const subj = subjSelect.value;
     chapSelect.replaceChildren(new Option('All Chapters', ''));
-    topicSelect.replaceChildren(new Option('All Topics', ''));
     
     const chaptersSet = new Set();
-    const topicsSet = new Set();
-    
     const processQs = (qs) => {
       qs.forEach(q => {
         if (typeof q.chapter === 'string' && q.chapter.trim()) chaptersSet.add(q.chapter.trim());
-        if (typeof q.topic === 'string' && q.topic.trim()) topicsSet.add(q.topic.trim());
       });
     };
 
@@ -636,16 +656,14 @@ async function showPreview(id) {
     }
     
     Array.from(chaptersSet).sort().forEach(c => chapSelect.append(new Option(c, c)));
-    Array.from(topicsSet).sort().forEach(t => topicSelect.append(new Option(t, t)));
   }
 
   function updateTopics() {
     const subj = subjSelect.value;
     const chap = chapSelect.value;
-    topicSelect.replaceChildren(new Option('All Topics', ''));
+    topicList.replaceChildren();
     
     const topicsSet = new Set();
-    
     const processQs = (qs) => {
       qs.forEach(q => {
         if (chap && (q.chapter || '').trim() !== chap) return;
@@ -659,14 +677,25 @@ async function showPreview(id) {
       subjects.forEach(s => processQs(state.test.subjects[s] || []));
     }
     
-    Array.from(topicsSet).sort().forEach(t => topicSelect.append(new Option(t, t)));
+    Array.from(topicsSet).sort().forEach(t => {
+      const label = el('label', 'multi-item');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = t;
+      cb.addEventListener('change', () => {
+        updateTopicBtnText();
+        renderFilteredList();
+      });
+      label.append(cb, document.createTextNode(' ' + t));
+      topicList.append(label);
+    });
+    updateTopicBtnText();
   }
 
-  subjSelect.addEventListener('change', () => { updateChapters(); renderFilteredList(); });
+  subjSelect.addEventListener('change', () => { updateChapters(); updateTopics(); renderFilteredList(); });
   chapSelect.addEventListener('change', () => { updateTopics(); renderFilteredList(); });
-  topicSelect.addEventListener('change', renderFilteredList);
 
-  filterWrap.append(subjSelect, chapSelect, topicSelect);
+  filterWrap.append(subjSelect, chapSelect, topicWrap);
   wrap.append(filterWrap);
 
   const listWrap = el('div', 'stack');
@@ -686,7 +715,7 @@ async function showPreview(id) {
     listWrap.replaceChildren();
     const sFilter = subjSelect.value;
     const cFilter = chapSelect.value;
-    const tFilter = topicSelect.value;
+    const tFilters = Array.from(topicList.querySelectorAll('input:checked')).map(cb => cb.value);
     let hasAny = false;
 
     Object.entries(state.test.subjects).forEach(([subject, qs]) => {
@@ -694,7 +723,10 @@ async function showPreview(id) {
 
       const filtered = qs.map((q, i) => ({ q, i })).filter(({ q }) => {
         if (cFilter && (q.chapter || '').trim() !== cFilter) return false;
-        if (tFilter && (q.topic || '').trim() !== tFilter) return false;
+        if (tFilters.length > 0) {
+          const qt = (q.topic || '').trim();
+          if (!tFilters.includes(qt)) return false;
+        }
         return true;
       });
 
