@@ -256,6 +256,12 @@ class AnalysisAndPasteTest(TempDataCase):
         self.assertEqual(r.status_code, 201)
         self.assertEqual(r.get_json()["test_name"], "My Test")
 
+    def test_paste_fenced_json(self):
+        text = "Here is the JSON:\n```json\n" + json.dumps(ANALYSIS_TEST) + "\n```"
+        r = self.c.post("/api/tests/paste", json={"json": text})
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.get_json()["total"], 4)
+
     def test_paste_bad_json_422(self):
         r = self.c.post("/api/tests/paste", json={"json": "{not json"})
         self.assertEqual(r.status_code, 422)

@@ -130,6 +130,73 @@ class ImporterTest(unittest.TestCase):
         self.assertEqual(r["counts"]["P"], 1)
 
 
+class AiOutputRepairTest(unittest.TestCase):
+    """AI ke output me aane wali common JSON galtiyan import ko nahi rokti."""
+
+    def imp(self, text):
+        from core.importer import import_files
+        return import_files([("a.json", text.encode("utf-8"))], None)
+
+    def q(self, **kw):
+        q = {"q": "q", "options": ["A", "B", "C"], "answer": "A"}
+        q.update(kw)
+        return q
+
+    def test_fenced_json_with_chat_text(self):
+        doc = {"name": "T", "subjects": {"P": [self.q()]}}
+        text = "Here is the JSON:\n```json\n" + json.dumps(doc) + "\n```\nThanks"
+        r = self.imp(text)
+        self.assertEqual(r["errors"], [])
+        self.assertEqual(r["used"]["P"], 1)
+
+    def test_single_backslash_latex_repaired(self):
+        text = ('{"name":"T","subjects":{"P":[{"q":"$\\sqrt{2}$ and '
+                '$\\frac{1}{2}$","options":["a","b"],"answer":"A"}]}}')
+        r = self.imp(text)
+        self.assertEqual(r["errors"], [])
+        self.assertEqual(r["subjects"]["P"][0]["q"], "$\\sqrt{2}$ and $\\frac{1}{2}$")
+
+    def test_real_newline_inside_string(self):
+        text = '{"subjects":{"P":[{"q":"line1\nline2","options":["a","b"],"answer":"A"}]}}'
+        r = self.imp(text)
+        self.assertEqual(r["subjects"]["P"][0]["q"], "line1\nline2")
+
+    def test_trailing_comma(self):
+        text = '{"name":"T","subjects":{"P":[{"q":"a","options":["a","b"],"answer":"A",},]}}'
+        r = self.imp(text)
+        self.assertEqual(r["errors"], [])
+        self.assertEqual(r["used"]["P"], 1)
+
+    def test_subjects_array_shape(self):
+        doc = {"name": "T", "subjects": [{"name": "P", "questions": [self.q()]}]}
+        r = self.imp(json.dumps(doc))
+        self.assertEqual(r["errors"], [])
+        self.assertEqual(r["used"]["P"], 1)
+
+    def test_single_subject_object(self):
+        doc = {"subjects": {"P": self.q()}}
+        r = self.imp(json.dumps(doc))
+        self.assertEqual(r["used"]["P"], 1)
+
+    def test_options_object_and_answer_label(self):
+        doc = {"subjects": {"P": [{"q": "q", "options": {"A": "x", "B": "y"},
+                                  "answer": "Option B"}]}}
+        r = self.imp(json.dumps(doc))
+        self.assertEqual(r["used"]["P"], 1)
+        self.assertEqual(r["subjects"]["P"][0]["options"], ["x", "y"])
+        self.assertEqual(r["subjects"]["P"][0]["answer"], "B")
+
+    def test_answer_variants(self):
+        for a in ("(b)", "B)", "option c", "c"):
+            r = self.imp(json.dumps({"subjects": {"P": [self.q(answer=a)]}}))
+            self.assertEqual(r["used"]["P"], 1, a)
+
+    def test_bad_json_message_has_location(self):
+        r = self.imp('{"subjects": {"P": [}}')
+        self.assertTrue(r["errors"])
+        self.assertIn("line", r["skipped"]["a.json"][0])
+
+
 class ImportRouteTest(TempDataCase):
     def setUp(self):
         super().setUp()

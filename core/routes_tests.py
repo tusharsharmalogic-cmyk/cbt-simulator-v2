@@ -139,7 +139,7 @@ def paste_test():
     if len(text.encode("utf-8")) > _MAX_FILE_BYTES:
         return jsonify(error="JSON 5MB se bada hai"), 422
     try:
-        doc = json.loads(text)
+        doc = importer.parse_json_text(text)
     except json.JSONDecodeError as e:
         return jsonify(error=f"JSON kharab hai: line {e.lineno}, col {e.colno}: {e.msg}"), 422
 

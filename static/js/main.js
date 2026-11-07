@@ -852,6 +852,7 @@ async function showAvailableTests() {
     panel.append(nameInput);
 
     const msg = el('div', 'muted small', '');
+    msg.style.whiteSpace = 'pre-line';
     panel.append(msg);
 
     const row = el('div', 'actions-row');
@@ -863,8 +864,6 @@ async function showAvailableTests() {
     save.addEventListener('click', async () => {
       const text = ta.value.trim();
       if (!text) { msg.textContent = 'Pehle JSON paste karo.'; ta.focus(); return; }
-      try { JSON.parse(text); }
-      catch (e) { msg.textContent = 'JSON kharab hai: ' + e.message; return; }
       save.disabled = true;
       msg.textContent = 'Save ho raha hai...';
       try {
@@ -872,10 +871,13 @@ async function showAvailableTests() {
         sheet.remove();
         showAvailableTests();
       } catch (e) {
-        msg.textContent = 'Save fail: ' + (e.message || 'unknown');
+        let detail = '';
         if (e.skipped) {
-          Object.entries(e.skipped).forEach(([f, m]) => { msg.textContent += `\n${[].concat(m).join(', ')}`; });
+          const lines = [];
+          Object.values(e.skipped).forEach((m) => lines.push(...[].concat(m)));
+          detail = lines.slice(0, 5).join('\n');
         }
+        msg.textContent = 'Save fail: ' + (e.message || 'unknown') + (detail ? '\n' + detail : '');
         save.disabled = false;
       }
     });

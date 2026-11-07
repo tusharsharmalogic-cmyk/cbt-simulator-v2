@@ -25,6 +25,7 @@ Open http://127.0.0.1:8080 on phone browser. Sirf `flask` chahiye (`pip install 
 - Available Tests screen: accordion detail, per-test preview (LaTeX/SVG render check), delete. Lamba test name poora wrap hota hai (truncate nahi).
 - Test card kholne par JSON se hi analysis: subject-wise question count, chapters (chapter tap → uske topics), aur paper ka level (easy/medium/hard ka count + %).
 - Import do jagah se: Setup screen (template ke saath, capped) aur Available Tests (bina template — subjects file se derive hote hain). Available Tests par **Paste** button se AI ka banaya JSON seedha paste karke save hota hai.
+- AI ki common JSON galtiyan import/paste karte waqt auto-fix hoti hain: markdown fence aur aage-piche ka text, trailing comma, single-backslash LaTeX (`\sqrt`, `\frac`), string ke andar real newline, `subjects` array shape, `options` object, aur `answer` ke labels (`Option B`, `(b)`, `B)`).
 
 **Attempts (test lena)**
 - Setup pe ek template + ek ya zyada tests chuno; multiple tests subject-wise merge hote hain.
@@ -47,7 +48,7 @@ Open http://127.0.0.1:8080 on phone browser. Sirf `flask` chahiye (`pip install 
 
 **Settings**
 - Theme: system / light / dark (server pe save, reload ke baad bhi).
-- Do editable AI prompts — photos se test JSON banane wala aur bina photo ke naye questions banane wala. Edit `data/` me save hota hai, default file kabhi overwrite nahi hoti; reset se default wapas.
+- Do editable AI prompts — photos se test JSON banane wala aur bina photo ke naye questions banane wala. Dono me exact JSON shape aur import fail karne wali common galtiyan (fence, backslash, trailing comma, `subjects`/`options`/`answer` shapes) explicitly likhi hain. Edit `data/` me save hota hai, default file kabhi overwrite nahi hoti; reset se default wapas.
 
 ## Layout
 
@@ -134,7 +135,7 @@ Mutation errors: `409` submitted / time_up / subject_locked / question_locked (l
 
     python -m unittest discover -s tests
 
-114 tests (1.1 s) — importer, validator, test analysis + paste route, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), time attribution, retry, lock flow, skip-empty. Tests temp data dir use karte hain, real `data/` touch nahi hota.
+124 tests (1.1 s) — importer (incl. AI output repair), validator, test analysis + paste route, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), time attribution, retry, lock flow, skip-empty. Tests temp data dir use karte hain, real `data/` touch nahi hota.
 
 ## Hard rules
 

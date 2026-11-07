@@ -21,6 +21,14 @@ You are helping me build a multiple-choice test for my CBT simulator app. I will
 
 ## JSON format
 
+The shape is fixed — copy it exactly:
+
+- `subjects` is a JSON **object** (curly braces), keyed by subject name — never an array.
+- Each subject's value is an **array** of question objects — never a single object.
+- `options` is an **array of strings** — never an object like `{"A": "...", "B": "..."}`.
+- `answer` is **one capital letter** pointing at the option position (`"A"` = first option). Never `"Option B"`, `"B)"`, `2`, or the option text.
+- Do not wrap the document in `{"test": ...}` or `{"data": ...}`; the top level is `name` + `subjects`.
+
 ```
 {
   "name": "Test name",
@@ -80,9 +88,24 @@ Field rules:
 
 {"name":"Sample Test","subjects":{"Maths":[{"q":"Evaluate: $$\\int_0^1 x^2\\,dx$$","chapter":"Definite Integrals","topic":"Power rule","difficulty":"easy","options":["$\\frac{1}{2}$","$\\frac{1}{3}$","$\\frac{1}{4}$","$1$"],"answer":"B","solution":"$\\left[\\frac{x^3}{3}\\right]_0^1=\\frac{1}{3}$"},{"q":"A triangle has sides $3, 4, 5$. Find its area.","chapter":"Triangles","topic":"Area of right triangle","difficulty":"medium","svg":"<svg viewBox='0 0 120 100'><polygon points='10,80 110,80 10,20' fill='none' stroke='currentColor' stroke-width='2'/><text x='55' y='95' font-size='12' fill='currentColor'>4</text><text x='0' y='55' font-size='12' fill='currentColor'>3</text><text x='65' y='45' font-size='12' fill='currentColor'>5</text></svg>","options":["$6$","$12$","$10$","$8$"],"answer":"A","solution":"Right triangle: area $=\\frac{1}{2}\\times3\\times4=6$"}],"Physics":[{"q":"SI unit of force?","chapter":"Units and Dimensions","topic":"SI units","difficulty":"easy","options":["Joule","Newton","Watt","Pascal"],"answer":"B"}]}}
 
+## Common mistakes that break the import (avoid all of these)
+
+- **Markdown fence**: no code fence around the JSON (no backtick block), and no "Here is the JSON" line before it.
+- **Single backslash in LaTeX**: write `"$\\sqrt{2}$"` (doubled) — a single `"$\sqrt{2}$"` breaks the JSON. Same for `\\frac`, `\\theta`, `\\times`, `\\vec`, `\\text`.
+- **Trailing comma**: `{"answer": "B",}` is invalid — the last item never has a comma after it.
+- **Real line break inside a string**: use `\\n`, never press Enter inside `"q"`, `"solution"` or an option.
+- **`subjects` as array**: `{"subjects": [{"name": "Physics", ...}]}` is the wrong shape; use `{"subjects": {"Physics": [...]}}`.
+- **`options` as object**: use `["...", "..."]`, not `{"A": "...", "B": "..."}`.
+- **`answer` as number/label**: use `"B"`, not `1`, `"B)"`, `"Option B"` or the full option text.
+- **Comments and single-quoted keys**: `// ...` and `'name':` are not valid JSON.
+- **Placeholders**: never copy `...` from the format example into the real output.
+- Use straight quotes `"` only — curly/smart quotes (`“ ”`) break the JSON.
+
 ## Before you reply, check
 
-- JSON is valid and every backslash is doubled.
+- Only JSON in the reply — no fence, no explanation.
+- JSON is valid, every backslash is doubled, and there is no trailing comma.
+- `subjects` is an object, each subject is an array, `options` is an array, `answer` is one letter.
 - Every `answer` is one capital letter within the number of options.
 - Every question has `chapter`, `topic` and `difficulty` (`easy` / `medium` / `hard`), and the same chapter/topic is spelled identically everywhere.
 - No question numbers or option letters inside `q` / `options`.
