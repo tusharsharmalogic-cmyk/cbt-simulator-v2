@@ -41,6 +41,48 @@ def delete_test(test_id):
         return jsonify(error=f"Delete fail: {e}"), 500
     return jsonify(ok=True)
 
+@bp.post("/merge")
+def merge_tests():
+    """Body: {"test_ids": ["id1", "id2"], "name": "New Test Name"}.
+
+    Multiple tests ko merge karke ek naya test banata hai (subjects case-insensitive
+    merge hote hain, questions dedupe hote hain). Naya test save hone ke baad
+    purane test delete kar diye jaate hain.
+    """
+    body = request.get_json(silent=True) or {}
+    test_ids = body.get("test_ids")
+    name = (body.get("name") or "").strip()
+
+    if not isinstance(test_ids, list) or len(test_ids) < 2:
+        return jsonify(error="Kam se kam 2 tests select karo"), 422
+    if not name:
+        return jsonify(error="Naye test ka naam chahiye"), 422
+
+    files = []
+    for tid in test_ids:
+        t, err = test_loader.load_test_safe(tid)
+        if err:
+            return jsonify(error=f"Test '{tid}' load nahi hua: {err}"), 404
+        files.append((f"{tid}.json", json.dumps(t).encode("utf-8")))
+
+    result = importer.import_files(files, None)
+    if result["errors"]:
+        return jsonify(errors=result["errors"]), 422
+
+    new_id, saved_name = importer.save_imported_test(result["subjects"], name)
+
+    # Purane tests delete karo
+    from core.test_loader import _path_for
+    for tid in test_ids:
+        p = _path_for(tid)
+        if p and p.is_file():
+            try:
+                p.unlink()
+            except OSError:
+                pass
+
+    return jsonify({"ok": True, "test_id": new_id, "test_name": saved_name})
+
 @bp.post("/<test_id>/remove_question")
 def remove_question(test_id):
     """Body: {"subject": "Physics", "index": 3}. Ek question hata kar test save.

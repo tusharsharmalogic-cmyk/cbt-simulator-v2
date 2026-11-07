@@ -799,6 +799,9 @@ async function showAvailableTests() {
 
   const wrap = el('div', 'available-screen');
 
+  // Multi-select state
+  const selectedIds = new Set();
+
   const topRow = el('div', 'avail-top');
   wrap.append(topRow);
 
@@ -808,6 +811,8 @@ async function showAvailableTests() {
 
   function renderList() {
     listWrap.replaceChildren();
+    selectedIds.clear(); // Reset selection on fresh render
+    updateMergeBtn();
     const visible = tests.filter(t => !t.error);
     if (!visible.length) {
       listWrap.append(el('p', 'muted', 'Koi test nahi hai. Import ya Paste karo.'));
@@ -877,6 +882,20 @@ async function showAvailableTests() {
   function testAccordion(t) {
     const card = el('div', 'test-card');
     const head = el('div', 'test-card-head');
+    
+    const cbWrap = el('div', 'tc-check-wrap');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'tc-check';
+    cb.addEventListener('change', (e) => {
+      e.stopPropagation(); // card toggle na ho
+      if (cb.checked) selectedIds.add(t.id);
+      else selectedIds.delete(t.id);
+      updateMergeBtn();
+    });
+    cbWrap.append(cb);
+    head.append(cbWrap);
+
     head.append(el('span', 'tc-icon', '📄'));
     const main = el('div', 'tc-main');
     main.append(el('h3', '', t.name));
@@ -893,7 +912,7 @@ async function showAvailableTests() {
     const toggle = el('span', 'tc-toggle', '▾');
     head.append(toggle);
     head.addEventListener('click', (e) => {
-      if (e.target.closest('button')) return;
+      if (e.target.closest('button') || e.target.closest('.tc-check-wrap')) return;
       card.classList.toggle('open');
     });
     card.append(head);
@@ -972,6 +991,70 @@ async function showAvailableTests() {
   importBtn.addEventListener('click', () => picker.click());
   importBtn.append(picker);
   topRow.append(importBtn);
+
+  // Merge button (only visible when 2+ tests selected)
+  const mergeBtn = el('button', 'import-mini merge-mini');
+  mergeBtn.type = 'button';
+  mergeBtn.style.display = 'none';
+  mergeBtn.append(el('span', 'import-cta-ico', '🔀'), el('span', 'import-cta-txt', 'Merge'));
+  mergeBtn.addEventListener('click', openMergeDialog);
+  topRow.append(mergeBtn);
+
+  function updateMergeBtn() {
+    if (selectedIds.size >= 2) {
+      mergeBtn.style.display = 'flex';
+      mergeBtn.querySelector('.import-cta-txt').textContent = `Merge (${selectedIds.size})`;
+    } else {
+      mergeBtn.style.display = 'none';
+    }
+  }
+
+  function openMergeDialog() {
+    if (selectedIds.size < 2) return;
+    
+    const sheet = el('div', 'sheet');
+    sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
+    const panel = el('div', 'sheet-panel');
+    panel.append(el('div', 'sheet-handle'));
+    panel.append(el('h3', '', `Merge ${selectedIds.size} tests`));
+    panel.append(el('div', 'muted small', 'Sabhi selected tests merge hokar ek naya test ban jayenge. Purane tests delete ho jayenge.'));
+
+    const nameInput = document.createElement('input');
+    nameInput.className = 'input';
+    nameInput.type = 'text';
+    nameInput.placeholder = 'Naye test ka naam';
+    nameInput.value = 'Merged Test';
+    panel.append(nameInput);
+
+    const row = el('div', 'actions-row');
+    const cancel = el('button', 'btn ghost', 'Cancel');
+    cancel.type = 'button';
+    cancel.addEventListener('click', () => sheet.remove());
+    
+    const okBtn = el('button', 'btn', 'OK');
+    okBtn.type = 'button';
+    okBtn.addEventListener('click', async () => {
+      const nm = nameInput.value.trim();
+      if (!nm) { alert('Naam chahiye'); return; }
+      okBtn.disabled = true;
+      okBtn.textContent = 'Merging...';
+      try {
+        await api.mergeTests(Array.from(selectedIds), nm);
+        sheet.remove();
+        showAvailableTests();
+      } catch (e) {
+        alert('Merge fail: ' + e.message);
+        okBtn.disabled = false;
+        okBtn.textContent = 'OK';
+      }
+    });
+    row.append(cancel, okBtn);
+    panel.append(row);
+    sheet.append(panel);
+    document.body.append(sheet);
+    nameInput.focus();
+    nameInput.select();
+  }
 
   // Paste JSON: clipboard se test JSON seedha Available Test me save.
   const pasteBtn = el('button', 'import-mini paste-mini');
