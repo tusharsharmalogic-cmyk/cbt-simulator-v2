@@ -173,6 +173,7 @@ def validate_template(data):
         "name": name,
         "timer_mode": mode,
         "total_minutes": total_minutes,
+        "auto_time": data.get("auto_time") is True,
         "subjects": clean_subjects,
     }
     return clean, []
@@ -186,6 +187,7 @@ def _summary(tid, t):
         "name": t.get("name", tid),
         "timer_mode": t.get("timer_mode", "total"),
         "total_minutes": t.get("total_minutes"),
+        "auto_time": t.get("auto_time") is True,
         "subjects": [
             {"name": s.get("name", ""),
              "questions": s.get("questions", 0),

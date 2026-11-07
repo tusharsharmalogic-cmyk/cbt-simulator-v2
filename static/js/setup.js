@@ -134,6 +134,19 @@ const setup = (() => {
     if (details.length) {
       const detCard = el('div', 'card');
       detCard.append(el('h3', '', '📊 Test Details'));
+      // Auto time preview: template auto_time ON ho aur test me kam Q hon
+      const tplSel0 = s.templates.find(x => x.id === s.templateId);
+      if (tplSel0 && tplSel0.auto_time === true) {
+        const tplQ = (tplSel0.subjects || []).reduce((a, x) => a + (Number(x.questions) || 0), 0);
+        const realQ = details.reduce((a, d) => a + Math.min(d.have, d.need), 0);
+        const base = Number(tplSel0.total_minutes) || 0;
+        if (tplQ > 0 && realQ > 0 && realQ < tplQ) {
+          const mins = Math.max(1, Math.round(base * realQ / tplQ));
+          detCard.append(el('div', 'muted', `⏱ Time: ${mins} min (auto, ${base} min me se)`));
+        } else {
+          detCard.append(el('div', 'muted', `⏱ Time: ${base} min`));
+        }
+      }
       details.forEach(d => {
         const row = el('div', 'td-row');
         const nameEl = el('div', 'td-name', d.name);

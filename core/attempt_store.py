@@ -103,6 +103,18 @@ def create_attempt(template, test, test_id, test_ids=None):
         # subject-mode me total_minutes = active subjects ke minutes ka sum
         tpl["total_minutes"] = sum(float(s.get("minutes") or 0) for s in active_subjects)
 
+    # Auto time: template ka auto_time ON ho aur test me template se kam Q hon,
+    # to total time (aur subject lock minutes) usi ratio me ghatao. Time kabhi badhta nahi.
+    if tpl.get("auto_time") is True and tpl.get("timer_mode") != "subject":
+        tpl_q = sum(int(s.get("questions") or 0) for s in (template.get("subjects") or []))
+        real_q = sum(len(v) for v in questions.values())
+        if tpl_q > 0 and 0 < real_q < tpl_q:
+            ratio = real_q / tpl_q
+            tpl["total_minutes"] = max(1, round(float(tpl.get("total_minutes") or 0) * ratio))
+            for s in active_subjects:
+                if s.get("subject_minutes"):
+                    s["subject_minutes"] = max(1, round(float(s["subject_minutes"]) * ratio))
+
     now = time.time()
     first = (tpl.get("subjects") or [{}])[0].get("name")
     # Start timers for the first subject + its first question right away

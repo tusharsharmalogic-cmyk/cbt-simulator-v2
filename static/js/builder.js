@@ -27,6 +27,7 @@ const builder = (() => {
       name: t.name || '',
       timer_mode: 'total',
       total_minutes: t.total_minutes || 180,
+      auto_time: t.auto_time === true,
       subjects: (t.subjects || []).map(s => ({
         name: s.name,
         questions: s.questions,
@@ -107,6 +108,17 @@ const builder = (() => {
                v => { ed.total_minutes = v === '' ? null : Number(v); updateSummary(); },
                { min: 1, step: 1, inputmode: 'numeric' }),
       ed.errors.total_minutes));
+
+    // Auto time toggle: test me kam Q hon to time usi ratio me ghate
+    const atRow = el('label', 'lock-row');
+    const atTog = document.createElement('input');
+    atTog.type = 'checkbox';
+    atTog.checked = ed.auto_time === true;
+    atTog.addEventListener('change', () => { ed.auto_time = atTog.checked; });
+    atRow.append(atTog, el('span', '', ' Auto time (JSON me kam Q ho to time bhi kam)'));
+    root.append(atRow);
+    root.append(el('div', 'muted small',
+      'ON: template me 50 Q / 180 min aur test me 25 Q ho to time 90 min. OFF: time hamesha 180 min.'));
 
     // Subjects
     root.append(el('h2', 'section-title', 'Subjects'));

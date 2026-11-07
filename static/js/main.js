@@ -171,6 +171,7 @@ async function showBuilder(id) {
       name: ed.name,
       timer_mode: 'total',
       total_minutes: ed.total_minutes,
+      auto_time: ed.auto_time === true,
       subjects: ed.subjects.map(s => ({
         name: s.name, questions: s.questions, marks: s.marks, negative: s.negative,
         minutes: null,
