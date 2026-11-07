@@ -23,14 +23,18 @@ function renderQuestionMeta(card, q, meta) {
   const dLabel = d === 'easy' ? 'Easy' : d === 'medium' ? 'Medium' : d === 'hard' ? 'Hard' : 'Unknown';
   strip.append(el('span', 'qmeta-chip diff diff-' + (d || 'unknown'), dLabel));
 
+  card.append(strip);
+
   if (typeof meta.onRemove === 'function' && Number.isInteger(meta.index)) {
-    const rm = el('button', 'qmeta-remove', '🗑 Hatao');
+    const rm = el('button', 'qmeta-remove', '❌');
     rm.type = 'button';
     rm.title = 'Yeh question test JSON se delete karo';
-    rm.addEventListener('click', () => meta.onRemove(meta.index));
-    strip.append(rm);
+    rm.addEventListener('click', (e) => {
+      e.stopPropagation();
+      meta.onRemove(meta.subject, meta.index); // subject pass karna zaroori hai
+    });
+    card.append(rm);
   }
-  card.append(strip);
 }
 
 function renderQuestion(q, no, opts = {}) {

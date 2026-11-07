@@ -636,16 +636,28 @@ body.in-test .bottom-nav { padding-left: 8px; padding-right: 8px; }
   .qmeta-chip.diff-unknown { color: var(--muted, #aaa); }
 }
 .qmeta-remove {
-  margin-left: auto;
-  padding: 4px 10px; font-size: 12px; line-height: 1.2;
-  border-radius: 8px; border: 1px solid rgba(198,40,40,0.45);
-  background: transparent; color: #c62828; cursor: pointer;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 6px;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #c62828;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.qmeta-remove:hover { background: rgba(198,40,40,0.08); }
+.qmeta-remove:hover { background: rgba(198,40,40,0.1); }
 @media (prefers-color-scheme: dark) {
-  .qmeta-remove { color: #ef9a9a; border-color: rgba(239,154,154,0.45); }
-  .qmeta-remove:hover { background: rgba(239,154,154,0.10); }
+  .qmeta-remove { color: #ef9a9a; }
+  .qmeta-remove:hover { background: rgba(239,154,154,0.15); }
 }
+/* Ensure the card is a positioning context for the absolute remove button */
+.card { position: relative; }
 
 .diff-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 13px; }
 .diff-name { min-width: 62px; font-weight: 600; }
