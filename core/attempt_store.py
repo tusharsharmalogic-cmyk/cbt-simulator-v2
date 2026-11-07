@@ -118,7 +118,7 @@ def create_attempt(template, test, test_id, test_ids=None):
         "start_time": now,
         "template": tpl,
         "test_id": test_id,
-        "test_ids": list(test_ids) if test_ids else [test_id],
+        "test_ids": [t for t in (test_ids or [test_id]) if t],
         "test_name": test.get("name", test_id),
         "questions": questions,
         "responses": responses,
@@ -130,11 +130,75 @@ def create_attempt(template, test, test_id, test_ids=None):
     }
     with _LOCK:
         save(attempt)
-    return attempt
+    return attempt# ---------- retry (submitted snapshot se naya attempt) ----------
+
+def create_retry(attempt, mode):
+    """Submitted attempt ke snapshot se naya attempt banao.
+
+    mode "full": saare questions (wahi template aur timing).
+    mode "wrong": sirf wrong + blank questions; time proportionally scale hota hai.
+    Source test file(s) attach nahi hote, isliye retry submit kuch delete nahi karta.
+    Retry ke liye koi question na mile to None.
+    """
+    src_tpl = attempt.get("template") or {}
+    all_qs = attempt.get("questions") or {}
+    rows_by_subj = {
+        s.get("name"): (s.get("rows") or [])
+        for s in ((attempt.get("result") or {}).get("subjects") or [])
+    }
+
+    tpl = copy.deepcopy(src_tpl)
+    subjects = {}
+    tpl_subjects = []
+    orig_total = 0
+    keep_total = 0
+
+    for s in src_tpl.get("subjects") or []:
+        name = s.get("name")
+        qs = all_qs.get(name) or []
+        if not qs:
+            continue
+        keep = list(range(len(qs)))
+        if mode == "wrong":
+            rows = rows_by_subj.get(name) or []
+            keep = [i for i in keep if i < len(rows)
+                    and rows[i].get("status") in ("wrong", "blank")]
+        orig_total += len(qs)
+        if not keep:
+            continue
+        keep_total += len(keep)
+        subjects[name] = copy.deepcopy([qs[i] for i in keep])
+        s2 = copy.deepcopy(s)
+        s2["questions"] = len(keep)
+        if s2.get("minutes"):
+            s2["minutes"] = max(0.1, round(float(s2["minutes"]) * len(keep) / len(qs), 1))
+        tpl_subjects.append(s2)
+
+    if not subjects:
+        return None
+
+    tpl["subjects"] = tpl_subjects
+    if mode == "wrong" and tpl.get("timer_mode") == "subject":
+        tpl["total_minutes"] = round(sum(float(s.get("minutes") or 0) for s in tpl_subjects), 1)
+    elif mode == "wrong" and orig_total:
+        tpl["total_minutes"] = max(1, round(
+            float(src_tpl.get("total_minutes") or 0) * keep_total / orig_total))
+
+    base_name = attempt.get("test_name") or "Test"
+    test = {
+        "name": base_name if mode == "full" else f"{base_name} (Wrong + Blank)",
+        "subjects": subjects,
+    }
+    # test_id None: retry attempt original test file ko touch nahi karta.
+    new = create_attempt(tpl, test, None, [])
+    new["retry_of"] = attempt.get("id")
+    new["retry_mode"] = mode
+    with _LOCK:
+        save(new)
+    return new
 
 
 # ---------- mutate ----------
-
 def _subject_in_template(attempt, subject):
     for s in attempt.get("template", {}).get("subjects") or []:
         if s.get("name") == subject:

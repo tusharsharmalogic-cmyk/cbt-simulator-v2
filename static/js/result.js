@@ -33,6 +33,34 @@ const resultScreen = (() => {
     }
     root.append(top);
 
+    // ---- Retry (snapshot se naya attempt) ----
+    const retryCard = el('div', 'card retry-card');
+    retryCard.append(el('h3', '', 'Practice again'));
+    retryCard.append(el('div', 'muted small', 'Isi test ke questions se naya attempt banao — purana result safe rehta hai.'));
+    const retryRow = el('div', 'actions-row');
+    const retryMsg = el('div', 'muted small', '');
+    const sendRetry = (mode, label) => {
+      retryRow.querySelectorAll('button').forEach(b => { b.disabled = true; });
+      retryMsg.textContent = 'Naya attempt ban raha hai...';
+      if (opts && opts.onRetry) opts.onRetry(mode, label)
+        .catch(e => {
+          retryMsg.textContent = 'Retry fail: ' + ((e && e.message) || 'unknown');
+          retryRow.querySelectorAll('button').forEach(b => { b.disabled = b === wrongBtn && weak === 0; });
+        });
+    };
+    const fullBtn = el('button', 'btn', '↻ Retry full test');
+    fullBtn.type = 'button';
+    fullBtn.addEventListener('click', () => sendRetry('full', 'full'));
+    retryRow.append(fullBtn);
+    const weak = (r.total.wrong || 0) + (r.total.blank || 0);
+    const wrongBtn = el('button', 'btn ghost', `↻ Wrong + blank (${weak})`);
+    wrongBtn.type = 'button';
+    wrongBtn.disabled = weak === 0;
+    wrongBtn.addEventListener('click', () => sendRetry('wrong', 'wrong'));
+    retryRow.append(wrongBtn);
+    retryCard.append(retryRow, retryMsg);
+    root.append(retryCard);
+
     // ---- Subject breakdown cards ----
     root.append(el('h2', 'section-title', 'Subject wise'));
     (r.subjects || []).forEach(s => {

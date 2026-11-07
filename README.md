@@ -40,6 +40,7 @@ Open http://127.0.0.1:8080 on phone browser. Sirf `flask` chahiye (`pip install 
 
 **Result**
 - Total + subject-wise score, max, correct/wrong/blank, accuracy, time spent.
+- Retry: attempt ke snapshot se naya test — **full** ya sirf **wrong + blank** questions (time proportionally scale hota hai). Purana result safe rehta hai, koi test file delete nahi hoti.
 - All/Correct/Wrong/Blank filter, expandable per-question review with solution.
 - Time-up aur all-locked auto-submit reason dikhte hain.
 
@@ -121,6 +122,7 @@ Rules: `q` non-empty, 2–6 string options, `answer` ek capital letter options k
 | POST | `/api/attempts/<id>/mark` | `{subject, index, marked}` |
 | POST | `/api/attempts/<id>/visit` | `{subject, index, spent, from_subject?, from_index?}` — `spent` pichhle question ka, naya `subject/index` visit hota hai (0–600 s clamp) |
 | POST | `/api/attempts/<id>/submit` | optional `{subject, index, spent}` flush + finalize + scoring |
+| POST | `/api/attempts/<id>/retry` | `{mode: "full"\|"wrong"}` — submitted attempt ke snapshot se naya attempt (200 pe naya attempt view) |
 | GET/PUT/DELETE | `/api/prompt` / `/api/prompt/<key>` | `photos` (default) ya `generate` |
 
 Mutation errors: `409` submitted / time_up / subject_locked / question_locked (locked response me `next` aur fresh `view` bhi hota hai), `422` validation.
@@ -129,7 +131,7 @@ Mutation errors: `409` submitted / time_up / subject_locked / question_locked (l
 
     python -m unittest discover -s tests
 
-102 tests (0.9 s) — importer, validator, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), time attribution, lock flow, skip-empty. Tests temp data dir use karte hain, real `data/` touch nahi hota.
+107 tests (1.0 s) — importer, validator, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), time attribution, retry, lock flow, skip-empty. Tests temp data dir use karte hain, real `data/` touch nahi hota.
 
 ## Hard rules
 
@@ -145,6 +147,6 @@ Mutation errors: `409` submitted / time_up / subject_locked / question_locked (l
 
 - Single user, no auth. Default bind `127.0.0.1`; `--host 0.0.0.0` karte hi tests/attempts network pe accessible ho jaate hain.
 - Locks `threading.Lock` hain — sirf ek Flask process ke andar safe, multi-worker deployment ke liye nahi.
-- Submit pe source test JSON file(s) **delete** ho jaati hain; unanswered questions se `<test_id>_unanswered.json` ban jaata hai. Wahi test dobara dene ke liye file wapas import karni padegi.
+- Submit pe source test JSON file(s) **delete** ho jaati hain; unanswered questions se `<test_id>_unanswered.json` ban jaata hai. Wahi test dobara dene ke liye file wapas import karne ki zaroorat nahi — attempt ke result se **Retry full / Wrong + blank** kar lo (snapshot se banta hai). Retry attempt kisi bhi test file ko delete nahi karta.
 - UI sirf total timer aur per-subject lock modes deta hai; backend `timer_mode: "subject"` (global subject-wise windows) bhi support karta hai.
 - AI prompts me hi question generation ke rules hain — app khud koi AI call nahi karta.

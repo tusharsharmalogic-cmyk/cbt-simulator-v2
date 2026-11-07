@@ -260,6 +260,26 @@ def visit(aid):
     return _save_and_view(a)
 
 
+@bp.post("/<aid>/retry")
+def retry(aid):
+    """Submitted attempt ke snapshot se naya attempt (full ya wrong+blank)."""
+    a, err = _get_or_404(aid)
+    if err:
+        return err
+    if a.get("status") != "submitted":
+        return jsonify(error="Attempt abhi submit nahi hua"), 409
+    if not a.get("result"):
+        return jsonify(error="Result missing"), 422
+    body = request.get_json(silent=True) or {}
+    mode = body.get("mode") or "full"
+    if mode not in ("full", "wrong"):
+        return jsonify(error="mode 'full' ya 'wrong' hona chahiye"), 422
+    n = attempt_store.create_retry(a, mode)
+    if n is None:
+        return jsonify(error="Retry ke liye koi question nahi mila"), 422
+    return jsonify(attempt_store.client_view(n, strip_answers=True))
+
+
 @bp.post("/<aid>/submit")
 def submit(aid):
     a, err = _get_or_404(aid)

@@ -308,6 +308,71 @@ class ListAndDeleteTest(Base):
         self.assertEqual(len(self.c.get("/api/attempts").get_json()), 0)
 
 
+class RetryTest(Base):
+    def _submit(self, aid):
+        r = self.c.post(f"/api/attempts/{aid}/submit")
+        self.assertEqual(r.status_code, 200)
+        return r.get_json()
+
+    def test_full_retry_copies_all_questions(self):
+        aid = self.create().get_json()["id"]
+        self._submit(aid)
+        r = self.c.post(f"/api/attempts/{aid}/retry", json={"mode": "full"})
+        self.assertEqual(r.status_code, 200)
+        n = r.get_json()
+        self.assertNotEqual(n["id"], aid)
+        self.assertEqual(n["status"], "in_progress")
+        self.assertEqual(len(n["questions"]["P"]), 2)
+        self.assertEqual(len(n["questions"]["C"]), 1)
+        self.assertEqual(n["test_name"], "T")
+        self.assertEqual(n["retry_of"], aid)
+        self.assertEqual(n["template"]["total_minutes"], 10)
+        # naye attempt me answers phir se chhupaye gaye
+        for qs in n["questions"].values():
+            for q in qs:
+                self.assertNotIn("answer", q)
+
+    def test_wrong_retry_keeps_only_wrong_and_blank(self):
+        aid = self.create().get_json()["id"]
+        self.c.post(f"/api/attempts/{aid}/answer",
+                    json={"subject": "P", "index": 0, "choice": "A"})  # sahi
+        self.c.post(f"/api/attempts/{aid}/answer",
+                    json={"subject": "C", "index": 0, "choice": "B"})  # galat
+        self._submit(aid)  # P1 blank
+        r = self.c.post(f"/api/attempts/{aid}/retry", json={"mode": "wrong"})
+        self.assertEqual(r.status_code, 200)
+        n = r.get_json()
+        self.assertEqual([q["q"] for q in n["questions"]["P"]], ["p2"])
+        self.assertEqual([q["q"] for q in n["questions"]["C"]], ["c1"])
+        self.assertEqual(n["template"]["total_minutes"], 7)  # 10 * 2/3
+        self.assertIn("Wrong + Blank", n["test_name"])
+
+    def test_wrong_retry_with_no_wrong_blank_422(self):
+        aid = self.create().get_json()["id"]
+        for subj, idx, choice in [("P", 0, "A"), ("P", 1, "B"), ("C", 0, "A")]:
+            self.c.post(f"/api/attempts/{aid}/answer",
+                        json={"subject": subj, "index": idx, "choice": choice})
+        self._submit(aid)
+        r = self.c.post(f"/api/attempts/{aid}/retry", json={"mode": "wrong"})
+        self.assertEqual(r.status_code, 422)
+
+    def test_retry_before_submit_409(self):
+        aid = self.create().get_json()["id"]
+        r = self.c.post(f"/api/attempts/{aid}/retry", json={"mode": "full"})
+        self.assertEqual(r.status_code, 409)
+
+    def test_retry_submit_leaves_tests_dir_untouched(self):
+        aid = self.create().get_json()["id"]
+        self.c.post(f"/api/attempts/{aid}/answer",
+                    json={"subject": "P", "index": 0, "choice": "A"})
+        self._submit(aid)
+        before = sorted(p.name for p in config.TESTS_DIR.glob("*.json"))
+        n = self.c.post(f"/api/attempts/{aid}/retry", json={"mode": "full"}).get_json()
+        self.c.post(f"/api/attempts/{n['id']}/submit")
+        after = sorted(p.name for p in config.TESTS_DIR.glob("*.json"))
+        self.assertEqual(before, after)
+
+
 class ScoringTest(unittest.TestCase):
     def test_mixed_template(self):
         from core import scoring
