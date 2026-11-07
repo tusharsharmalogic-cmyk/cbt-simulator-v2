@@ -199,7 +199,94 @@ async function showSetup() {
     onToggleImport: () => { s.showImport = !s.showImport; rerender(); },
     onImport: doImport,
     onStart: start,
+    onToggleCustom: async (on) => {
+      s.customMode = on;
+      if (on && !opts.customPanel) {
+        try { opts.customPanel = await buildCustomPanel(); }
+        catch (e) { alert('Pool load fail: ' + e.message); s.customMode = false; }
+      }
+      rerender();
+    },
+    customPanel: null,
   };
+
+  // Custom filter mode: saare Available Tests ke questions pe filter -> naya test -> auto select
+  async function buildCustomPanel() {
+    const pool = (await api.testPool()).items || [];
+    const cap = (d) => d.charAt(0).toUpperCase() + d.slice(1);
+    const uniq = (arr) => Array.from(new Set(arr)).sort();
+    const panel = el('div', 'card');
+    panel.append(el('h3', '', '🎛 Custom filter (saare tests)'));
+    const filterWrap = el('div', 'preview-filters');
+
+    const sel = (f) => f.getSelected();
+    const ok = (it, S, C, T, D) =>
+      (!S.length || S.includes(it.s)) && (!C.length || C.includes(it.c)) &&
+      (!T.length || T.includes(it.t)) && (!D.length || D.includes(cap(it.d)));
+
+    const subjF = makeMultiSelect('Subjects', () => { refreshOpts(); update(); });
+    const chapF = makeMultiSelect('Chapters', () => { refreshOpts(); update(); });
+    const topicF = makeMultiSelect('Topics', () => update());
+    const diffF = makeMultiSelect('Difficulty', () => { refreshOpts(); update(); });
+    filterWrap.append(subjF.wrap, chapF.wrap, topicF.wrap, diffF.wrap);
+    panel.append(filterWrap);
+
+    const countLbl = el('div', 'muted small', '');
+    const createBtn = el('button', 'btn wide', 'Create & select test');
+    createBtn.type = 'button';
+    panel.append(countLbl, createBtn);
+
+    function refreshOpts() {
+      const S = sel(subjF), C = sel(chapF), D = sel(diffF);
+      chapF.setItems(uniq(pool.filter(it => ok(it, S, [], [], D)).map(it => it.c)));
+      const C2 = sel(chapF);
+      topicF.setItems(uniq(pool.filter(it => ok(it, S, C2, [], D)).map(it => it.t)));
+    }
+    function matched() {
+      const S = sel(subjF), C = sel(chapF), T = sel(topicF), D = sel(diffF);
+      return pool.filter(it => ok(it, S, C, T, D));
+    }
+    function update() {
+      const n = matched().length;
+      countLbl.textContent = n + ' questions match (saare tests, duplicate hata ke)';
+      createBtn.disabled = n === 0;
+    }
+    function autoName() {
+      const parts = ['Custom'];
+      [sel(subjF), sel(chapF), sel(topicF), sel(diffF)].forEach(a => {
+        if (a.length) parts.push(a.join(' + '));
+      });
+      if (parts.length === 1) parts.push('All');
+      return parts.join(' - ').slice(0, 80);
+    }
+
+    createBtn.addEventListener('click', async () => {
+      createBtn.disabled = true;
+      createBtn.textContent = 'Ban raha hai...';
+      try {
+        const res = await api.customTest({
+          subjects: sel(subjF), chapters: sel(chapF), topics: sel(topicF),
+          difficulties: sel(diffF).map(d => d.toLowerCase()),
+          name: autoName(),
+        });
+        try { s.tests = await api.tests(); } catch {}
+        s.testIds = [res.test_id];
+        s.testName = res.test_name;
+        rerender();
+      } catch (e) {
+        alert('Custom test fail: ' + e.message);
+      } finally {
+        createBtn.textContent = 'Create & select test';
+        update();
+      }
+    });
+
+    subjF.setItems(uniq(pool.map(it => it.s)));
+    diffF.setItems(uniq(pool.map(it => cap(it.d))));
+    refreshOpts();
+    update();
+    return panel;
+  }
 
   const rerender = () => {
     app.replaceChildren(setup.render(s, opts));

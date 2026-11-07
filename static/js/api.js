@@ -36,6 +36,8 @@ const api = {
     `/api/tests/${encodeURIComponent(id)}/split`, { questions }),
   splitTestGroups: (id, groups) => api.post(
     `/api/tests/${encodeURIComponent(id)}/split`, { groups }),
+  testPool: () => api.get('/api/tests/pool'),
+  customTest: (filters) => api.post('/api/tests/custom', filters),
   validateTest: (id, templateId) => api.get(
     `/api/tests/${encodeURIComponent(id)}/validate?template=${encodeURIComponent(templateId)}`),
 

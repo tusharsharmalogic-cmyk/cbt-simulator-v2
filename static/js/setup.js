@@ -77,6 +77,21 @@ const setup = (() => {
     tField.append(tSel);
     root.append(tField);
 
+    // 1b. Custom filter mode toggle (saare Available Tests pe filter lagao)
+    const cmRow = el('label', 'field');
+    const cmCb = document.createElement('input');
+    cmCb.type = 'checkbox';
+    cmCb.checked = !!s.customMode;
+    cmCb.addEventListener('change', () => opts.onToggleCustom(cmCb.checked));
+    const cmLine = el('div', '');
+    cmLine.style.display = 'flex';
+    cmLine.style.alignItems = 'center';
+    cmLine.style.gap = '8px';
+    cmLine.append(cmCb, el('span', 'field-label', '🎛 Custom filter mode (saare tests se)'));
+    cmRow.append(cmLine);
+    root.append(cmRow);
+    if (s.customMode && opts.customPanel) root.append(opts.customPanel);
+
     // 2. Test (multi-select: checkbox list)
     const testField = el('div', 'field');
     const picked0 = (s.testIds || []).length;

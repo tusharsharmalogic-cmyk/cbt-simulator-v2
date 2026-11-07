@@ -339,3 +339,80 @@ def paste_test():
 def time_str():
     import time
     return time.strftime("%Y-%m-%d %H:%M")
+
+# ---------- custom test from ALL available tests (filters) ----------
+
+_DIFFS = ("easy", "medium", "hard")
+
+def _diff_of(q):
+    d = q.get("difficulty")
+    d = d.strip().lower() if isinstance(d, str) else ""
+    return d if d in _DIFFS else "unknown"
+
+def _lab(v):
+    return v.strip() if isinstance(v, str) and v.strip() else "Unknown"
+
+def _collect_pool():
+    """Saare tests ke questions (subject case-insensitive merge, duplicates hata ke).
+    Returns list of (subject, question)."""
+    seen = set()
+    canon = {}      # ci subject -> first-seen display name
+    out = []
+    for item in test_loader.list_tests():
+        if item.get("error"):
+            continue
+        t, err = test_loader.load_test_safe(item["id"])
+        if err or not isinstance(t, dict):
+            continue
+        for sname, qs in (t.get("subjects") or {}).items():
+            if not isinstance(qs, list):
+                continue
+            disp = canon.setdefault(importer._ci_key(sname), sname)
+            for q in qs:
+                if not isinstance(q, dict):
+                    continue
+                k = (importer._ci_key(disp), importer._dedupe_key(q))
+                if k in seen:
+                    continue
+                seen.add(k)
+                out.append((disp, q))
+    return out
+
+@bp.get("/pool")
+def pool():
+    """Filters ke liye compact list: [{s, c, t, d}, ...] saare tests se."""
+    items = [{"s": s, "c": _lab(q.get("chapter")), "t": _lab(q.get("topic")),
+              "d": _diff_of(q)} for s, q in _collect_pool()]
+    return jsonify(items=items)
+
+@bp.post("/custom")
+def custom_test():
+    """Body: {"subjects": [], "chapters": [], "topics": [], "difficulties": [], "name": ""}.
+    Khaali list = us filter pe koi restriction nahi. Match hue questions se naya test save."""
+    body = request.get_json(silent=True) or {}
+
+    def lst(k):
+        v = body.get(k)
+        return {x for x in v if isinstance(x, str)} if isinstance(v, list) else set()
+
+    sS, cS, tS, dS = lst("subjects"), lst("chapters"), lst("topics"), lst("difficulties")
+    by_subj = {}
+    for s, q in _collect_pool():
+        if sS and s not in sS:
+            continue
+        if cS and _lab(q.get("chapter")) not in cS:
+            continue
+        if tS and _lab(q.get("topic")) not in tS:
+            continue
+        if dS and _diff_of(q) not in dS:
+            continue
+        by_subj.setdefault(s, []).append(q)
+
+    if not by_subj:
+        return jsonify(error="Is filter se koi question nahi mila"), 422
+
+    name = body.get("name") if isinstance(body.get("name"), str) else ""
+    name = name.strip()[:80] or ("Custom - " + " + ".join(by_subj.keys()))
+    new_id, saved = importer.save_imported_test(by_subj, name)
+    return jsonify(ok=True, test_id=new_id, test_name=saved,
+                   total=sum(len(v) for v in by_subj.values()))
