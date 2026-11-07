@@ -37,6 +37,10 @@ const api = {
   splitTestGroups: (id, groups) => api.post(
     `/api/tests/${encodeURIComponent(id)}/split`, { groups }),
   testPool: () => api.get('/api/tests/pool'),
+  schedule: () => api.get('/api/schedule'),
+  setSchedule: (testId, date, template_id) => api.put(
+    '/api/schedule/' + encodeURIComponent(testId), { date, template_id }),
+  clearSchedule: (testId) => api.del('/api/schedule/' + encodeURIComponent(testId)),
   customTest: (filters) => api.post('/api/tests/custom', filters),
   validateTest: (id, templateId) => api.get(
     `/api/tests/${encodeURIComponent(id)}/validate?template=${encodeURIComponent(templateId)}`),

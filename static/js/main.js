@@ -89,6 +89,43 @@ async function showHome() {
     wrap.append(row);
   }
 
+  // Scheduled tests: aaj wale + overdue (red chip). Start dabane par attempt bane aur entry hat jaye.
+  try {
+    const sched = (await api.schedule()).items || [];
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const due = sched.filter(x => x.date && x.date <= todayStr && x.template_id);
+    if (due.length) {
+      const box = el('div', 'sched-banner');
+      box.append(el('div', 'sched-banner-title', '📌 Scheduled tests'));
+      due.forEach(x => {
+        const overdue = x.date < todayStr;
+        const row = el('div', 'sched-row');
+        const info = el('div', 'sched-info');
+        info.append(el('div', 'sched-name', x.test_name));
+        const sub = el('div', 'sched-sub');
+        sub.append(el('span', overdue ? 'sched-chip overdue' : 'sched-chip', overdue ? '⚠ Overdue: ' + x.date : '📅 Aaj start karna hai'));
+        if (x.template_name) sub.append(el('span', 'muted small', ' • ' + x.template_name));
+        info.append(sub);
+        const go = el('button', 'btn', '▶ Start');
+        go.type = 'button';
+        go.addEventListener('click', async () => {
+          go.disabled = true;
+          try {
+            const a = await api.createAttempt(x.template_id, [x.test_id]);
+            try { await api.clearSchedule(x.test_id); } catch {}
+            location.hash = `#/attempt/${a.id}`;
+          } catch (e) {
+            alert('Start fail: ' + e.message);
+            go.disabled = false;
+          }
+        });
+        row.append(info, go);
+        box.append(row);
+      });
+      wrap.append(box);
+    }
+  } catch {}
+
   const items = [
     { icon: '▶', label: 'Start New Test', primary: true, hash: '#/setup' },
     { icon: '📋', label: 'Available Test', hash: '#/available' },
@@ -1056,6 +1093,10 @@ async function showAvailableTests() {
   show('Available Tests', el('p', 'muted', 'Load ho raha hai...'));
   let tests = [];
   try { tests = await api.tests(); } catch {}
+  let schedMap = {};     // test_id -> {date, template_id, template_name}
+  let tplList = [];
+  try { (await api.schedule()).items.forEach(x => { schedMap[x.test_id] = x; }); } catch {}
+  try { tplList = (await api.templates()).filter(x => !x.error); } catch {}
 
   const wrap = el('div', 'available-screen');
 
@@ -1184,6 +1225,12 @@ async function showAvailableTests() {
     meta.append(el('span', '', '📅 ' + dateStr));
     meta.append(el('span', '', 'Subjects: ' + Object.keys(t.subjects || {}).length));
     meta.append(el('span', '', 'Total Q: ' + total));
+    const sc = schedMap[t.id];
+    if (sc && sc.date) {
+      const todayStr = new Date().toLocaleDateString('en-CA');
+      const overdue = sc.date < todayStr;
+      meta.append(el('span', overdue ? 'sched-chip overdue' : 'sched-chip', (overdue ? '⚠ Overdue: ' : '📅 Scheduled: ') + sc.date));
+    }
     main.append(meta);
     head.append(main);
     const toggle = el('span', 'tc-toggle', '▾');
@@ -1235,10 +1282,78 @@ async function showAvailableTests() {
         showAvailableTests();
       } catch (e) { alert('Delete fail: ' + e.message); }
     });
-    actions.append(viewBtn, delBtn);
+    const schedBtn = el('button', 'btn ghost', '📅 Schedule');
+    schedBtn.type = 'button';
+    schedBtn.addEventListener('click', () => openScheduleDialog(t));
+    actions.append(viewBtn, schedBtn, delBtn);
     body.append(actions);
     card.append(body);
     return card;
+  }
+
+  // Schedule dialog: sirf date + template (time nahi)
+  function openScheduleDialog(t) {
+    const cur = schedMap[t.id] || null;
+    const sheet = el('div', 'sheet');
+    sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
+    const panel = el('div', 'sheet-panel');
+    panel.append(el('div', 'sheet-handle'));
+    panel.append(el('h3', '', 'Schedule: ' + t.name));
+    panel.append(el('div', 'muted small', 'Date chuno aur template set karo. Us din home screen pe reminder dikhega.'));
+
+    const dateInp = document.createElement('input');
+    dateInp.type = 'date';
+    dateInp.className = 'input';
+    dateInp.value = (cur && cur.date) || new Date().toLocaleDateString('en-CA');
+    panel.append(el('span', 'field-label', '📅 Date'), dateInp);
+
+    const tplSel = document.createElement('select');
+    tplSel.className = 'input';
+    if (!tplList.length) {
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = '(koi template nahi — pehle banao)';
+      tplSel.append(o); tplSel.disabled = true;
+    } else {
+      tplList.forEach(x => {
+        const o = document.createElement('option');
+        o.value = x.id;
+        o.textContent = x.name + ` (${x.total_minutes} min)`;
+        if (cur && cur.template_id === x.id) o.selected = true;
+        tplSel.append(o);
+      });
+    }
+    panel.append(el('span', 'field-label', '📋 Template'), tplSel);
+
+    const row = el('div', 'actions-row');
+    const cancel = el('button', 'btn ghost', 'Cancel');
+    cancel.type = 'button';
+    cancel.addEventListener('click', () => sheet.remove());
+    row.append(cancel);
+    if (cur) {
+      const clr = el('button', 'btn ghost danger', 'Clear');
+      clr.type = 'button';
+      clr.addEventListener('click', async () => {
+        try { await api.clearSchedule(t.id); sheet.remove(); showAvailableTests(); }
+        catch (e) { alert('Clear fail: ' + e.message); }
+      });
+      row.append(clr);
+    }
+    const save = el('button', 'btn', 'Save');
+    save.type = 'button';
+    save.addEventListener('click', async () => {
+      if (!dateInp.value) { alert('Date chuno'); return; }
+      if (!tplSel.value) { alert('Template chuno'); return; }
+      save.disabled = true;
+      try {
+        await api.setSchedule(t.id, dateInp.value, tplSel.value);
+        sheet.remove();
+        showAvailableTests();
+      } catch (e) { alert('Save fail: ' + e.message); save.disabled = false; }
+    });
+    row.append(save);
+    panel.append(row);
+    sheet.append(panel);
+    document.body.append(sheet);
   }
 
   // Import button; seedha file manager, direct save

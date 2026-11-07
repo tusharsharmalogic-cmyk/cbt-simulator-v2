@@ -1022,3 +1022,37 @@ mjx-container[display="true"] {
 }
 .menu-btn.discard-btn:active { background: rgba(198, 40, 40, 0.15); }
 .menu-btn.discard-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ===== Scheduled tests (home banner + available chips) ===== */
+.sched-banner {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.sched-banner-title { font-weight: 700; margin-bottom: 8px; }
+.sched-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.sched-row:first-of-type { border-top: 0; }
+.sched-info { flex: 1; min-width: 0; }
+.sched-name { font-weight: 600; word-break: break-word; }
+.sched-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.sched-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: rgba(74,125,255,0.14);
+  color: var(--accent, #4a7dff);
+}
+.sched-chip.overdue {
+  background: rgba(220,38,38,0.16);
+  color: #dc2626;
+  font-weight: 600;
+}

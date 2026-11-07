@@ -39,6 +39,11 @@ def delete_test(test_id):
         p.unlink()
     except OSError as e:
         return jsonify(error=f"Delete fail: {e}"), 500
+    try:
+        from core.routes_schedule import remove_entry
+        remove_entry(test_id)
+    except Exception:
+        pass
     return jsonify(ok=True)
 
 @bp.post("/merge")
