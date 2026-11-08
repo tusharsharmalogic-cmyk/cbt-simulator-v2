@@ -1149,3 +1149,9 @@ mjx-container[display="true"] {
 .option .opt-mark { flex: 0 0 auto; margin-left: auto; padding-left: 8px; font-weight: 700; font-size: 18px; }
 .option .opt-mark.ok { color: #2e7d32; }
 .option .opt-mark.bad { color: #c62828; }
+/* ---- Result review: time bar ---- */
+.time-bar { height: 5px; border-radius: 3px; background: var(--border); margin-top: 8px; overflow: hidden; }
+.time-bar-fill { display: block; height: 100%; border-radius: 3px; }
+.time-bar-fill.correct { background: #2e7d32; }
+.time-bar-fill.wrong { background: #c62828; }
+.time-bar-fill.blank { background: var(--muted); opacity: 0.6; }

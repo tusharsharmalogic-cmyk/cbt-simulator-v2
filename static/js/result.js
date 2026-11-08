@@ -278,10 +278,12 @@ const resultScreen = (() => {
       subjects.forEach(s => {
         if (f.subject !== 'all' && f.subject !== s.name) return;
         const qs = a.questions[s.name] || [];
+        // Subject ka max time (filter se independent) — bar isi ke relative
+        const maxT = (s.rows || []).reduce((m, rw) => Math.max(m, rw.time_spent || 0), 0);
         (s.rows || []).forEach((row, i) => {
           if (f.status !== 'all' && row.status !== f.status) return;
           if (f.marked && !row.marked) return;
-          rowsWrap.append(renderRow(a, s, row, qs[i], i));
+          rowsWrap.append(renderRow(a, s, row, qs[i], i, maxT));
         });
       });
       if (!rowsWrap.children.length) {
@@ -308,7 +310,7 @@ const resultScreen = (() => {
     return d;
   }
 
-  function renderRow(a, subj, row, q, index) {
+  function renderRow(a, subj, row, q, index, maxT) {
     const wrap = el('div', 'card result-row ' + row.status);
     const head = el('div', 'row-head');
     const badge = row.status === 'correct' ? '✓'
@@ -324,6 +326,15 @@ const resultScreen = (() => {
     toggle.setAttribute('aria-expanded', 'false');
     head.append(toggle);
     wrap.append(head);
+
+    // Time bar: subject ke max time ke relative (0 sec pe bar nahi)
+    if (row.time_spent > 0 && maxT > 0) {
+      const track = el('div', 'time-bar');
+      const fill = el('span', 'time-bar-fill ' + row.status);
+      fill.style.width = `${Math.max(2, Math.round((row.time_spent / maxT) * 100))}%`;
+      track.append(fill);
+      wrap.append(track);
+    }
 
     const body = el('div', 'row-body');
     body.hidden = true;
