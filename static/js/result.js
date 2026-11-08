@@ -280,7 +280,11 @@ const resultScreen = (() => {
         const qs = a.questions[s.name] || [];
         // Subject ka max time (filter se independent) — bar isi ke relative
         const maxT = (s.rows || []).reduce((m, rw) => Math.max(m, rw.time_spent || 0), 0);
-        (s.rows || []).forEach((row, i) => {
+        // Touched (answer ya time > 0) upar, untouched (blank + 0s) neeche; dono me original order
+        const idx = (s.rows || []).map((_, i) => i);
+        const touched = i => { const rw = s.rows[i]; return !!rw.choice || (rw.time_spent || 0) > 0; };
+        [...idx.filter(touched), ...idx.filter(i => !touched(i))].forEach(i => {
+          const row = s.rows[i];
           if (f.status !== 'all' && row.status !== f.status) return;
           if (f.marked && !row.marked) return;
           rowsWrap.append(renderRow(a, s, row, qs[i], i, maxT));
