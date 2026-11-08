@@ -250,11 +250,38 @@ const resultScreen = (() => {
   function renderReview(a, r) {
     const pane = el('div', 'result-pane');
     const subjects = r.subjects || [];
+    const f = { status: 'all', marked: false };
+    const cap = d => d.charAt(0).toUpperCase() + d.slice(1);
+    const uniq = arr => Array.from(new Set(arr)).sort();
 
-    const f = { status: 'all', subject: 'all', marked: false };
+    // Flat pool: har question ka subject/chapter/topic/difficulty
+    const pool = [];
+    subjects.forEach(s => {
+      const qs = (a.questions && a.questions[s.name]) || [];
+      (s.rows || []).forEach((row, i) => {
+        const q = qs[i] || {};
+        pool.push({ s: s.name, c: labelOf(q.chapter), t: labelOf(q.topic), d: cap(diffOf(q)) });
+      });
+    });
+    const ok = (it, S, C, T, D) =>
+      (!S.length || S.includes(it.s)) && (!C.length || C.includes(it.c)) &&
+      (!T.length || T.includes(it.t)) && (!D.length || D.includes(it.d));
+
+    const subjF = makeMultiSelect('Subjects', () => { refreshOpts(); refresh(); });
+    const chapF = makeMultiSelect('Chapters', () => { refreshOpts(); refresh(); });
+    const topicF = makeMultiSelect('Topics', () => refresh());
+    const diffF = makeMultiSelect('Difficulty', () => { refreshOpts(); refresh(); });
+    const filterWrap = el('div', 'preview-filters');
+    filterWrap.append(subjF.wrap, chapF.wrap, topicF.wrap, diffF.wrap);
+
+    function refreshOpts() {
+      const S = subjF.getSelected(), D = diffF.getSelected();
+      chapF.setItems(uniq(pool.filter(it => ok(it, S, [], [], D)).map(it => it.c)));
+      const C2 = chapF.getSelected();
+      topicF.setItems(uniq(pool.filter(it => ok(it, S, C2, [], D)).map(it => it.t)));
+    }
 
     const statusBar = el('div', 'filter-bar');
-    const subjBar = el('div', 'filter-bar');
     const rowsWrap = el('div', 'rows-wrap');
 
     const mk = (label, active, onClick) => {
@@ -272,15 +299,9 @@ const resultScreen = (() => {
         mk('Blank', f.status === 'blank', () => { f.status = 'blank'; refresh(); }),
         mk('★ Marked', f.marked, () => { f.marked = !f.marked; refresh(); }),
       );
-      if (subjects.length > 1) {
-        const items = [mk('All subjects', f.subject === 'all', () => { f.subject = 'all'; refresh(); })];
-        subjects.forEach(s => items.push(
-          mk(s.name, f.subject === s.name, () => { f.subject = s.name; refresh(); })));
-        subjBar.replaceChildren(...items);
-      }
+      const S = subjF.getSelected(), C = chapF.getSelected(), T = topicF.getSelected(), D = diffF.getSelected();
       rowsWrap.replaceChildren();
       subjects.forEach(s => {
-        if (f.subject !== 'all' && f.subject !== s.name) return;
         const qs = a.questions[s.name] || [];
         // Subject ka max time (filter se independent) — bar isi ke relative
         const maxT = (s.rows || []).reduce((m, rw) => Math.max(m, rw.time_spent || 0), 0);
@@ -289,9 +310,11 @@ const resultScreen = (() => {
         const touched = i => { const rw = s.rows[i]; return !!rw.choice || (rw.time_spent || 0) > 0; };
         [...idx.filter(touched), ...idx.filter(i => !touched(i))].forEach(i => {
           const row = s.rows[i];
+          const q = qs[i] || {};
           if (f.status !== 'all' && row.status !== f.status) return;
           if (f.marked && !row.marked) return;
-          rowsWrap.append(renderRow(a, s, row, qs[i], i, maxT));
+          if (!ok({ s: s.name, c: labelOf(q.chapter), t: labelOf(q.topic), d: cap(diffOf(q)) }, S, C, T, D)) return;
+          rowsWrap.append(renderRow(a, s, row, q, i, maxT));
         });
       });
       if (!rowsWrap.children.length) {
@@ -299,9 +322,11 @@ const resultScreen = (() => {
       }
     }
 
-    pane.append(statusBar);
-    if (subjects.length > 1) pane.append(subjBar);
-    pane.append(rowsWrap);
+    subjF.setItems(uniq(pool.map(it => it.s)));
+    diffF.setItems(['Easy', 'Medium', 'Hard', 'Unknown'].filter(d => pool.some(it => it.d === d)));
+    refreshOpts();
+
+    pane.append(filterWrap, statusBar, rowsWrap);
     refresh();
     return pane;
   }
