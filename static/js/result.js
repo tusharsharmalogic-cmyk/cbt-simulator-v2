@@ -15,10 +15,17 @@ const resultScreen = (() => {
     root.append(renderTop(a, r));
 
     // ---- Tabs ----
+    const reviewPane = renderReview(a, r);
     const tabs = [
       { key: 'overview', label: 'Overview', pane: renderOverview(a, r, opts) },
-      { key: 'analysis', label: 'Analysis', pane: renderAnalysis(a, r) },
-      { key: 'review', label: 'Review', pane: renderReview(a, r) },
+      { key: 'analysis', label: 'Analysis', pane: renderAnalysis(a, r, {
+        onReview: (flt) => {
+          reviewPane.applyFilter(flt);
+          show('review');
+          if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
+        },
+      }) },
+      { key: 'review', label: 'Review', pane: reviewPane },
     ];
     const tabBar = el('div', 'result-tabs');
     const btns = {};
@@ -131,6 +138,7 @@ const resultScreen = (() => {
   const MIN_SAMPLE = 3;      // fewer questions than this -> "Low data"
   const STRONG_AT = 0.75;    // correct / total
   const WEAK_BELOW = 0.4;
+  const MIN_ATTEMPTED = 5;   // min attempted questions in a subject for the blank-estimate
   const SORTS = [['weak', 'Weakest'], ['lost', 'Most marks lost'], ['time', 'Most time']];
 
   function emptyStat() { return { total: 0, correct: 0, wrong: 0, blank: 0, time: 0, lost: 0 }; }
@@ -295,7 +303,257 @@ const resultScreen = (() => {
     });
   }
 
-  function renderAnalysis(a, r) {
+  function signed(x) { return (x < 0 ? '−' : '+') + round2(Math.abs(x)); }
+  function loss(x) { return x > 0 ? '−' + round2(x) : '0'; }
+
+  // One label/value line. cls: 'neg' (red value) | 'dim' (grey value) | 'total' (bold, divider)
+  function mbRow(label, value, cls, sub) {
+    const row = el('div', 'mb-row' + (cls === 'total' ? ' total' : ''));
+    const left = el('div', 'mb-left');
+    left.append(el('div', 'mb-label', label));
+    if (sub) left.append(el('div', 'muted small', sub));
+    row.append(left, el('div', 'mb-val' + (cls ? ' ' + cls : ''), value));
+    return row;
+  }
+
+  function buildMarks(body, subjects) {
+    const per = subjects.map(s => {
+      const st = emptyStat();
+      s.items.forEach(it => addRow(st, it.row.status));
+      return { name: s.name, st, m: Number(s.marks) || 0, n: Number(s.neg) || 0 };
+    });
+    if (!per.some(p => p.st.total)) {
+      const empty = el('div', 'card');
+      empty.append(el('p', 'muted center', 'No questions.'));
+      body.append(empty);
+      return;
+    }
+
+    let max = 0, earned = 0, penalty = 0, missedOnWrong = 0, blankLost = 0, wrongN = 0, blankN = 0;
+    per.forEach(p => {
+      max += p.st.total * p.m;
+      earned += p.st.correct * p.m;
+      penalty += p.st.wrong * p.n;
+      missedOnWrong += p.st.wrong * p.m;
+      blankLost += p.st.blank * p.m;
+      wrongN += p.st.wrong;
+      blankN += p.st.blank;
+    });
+    const wrongLost = missedOnWrong + penalty;   // marks missed + negative marking
+    const score = earned - penalty;              // == max - wrongLost - blankLost
+
+    // ---- Card 1: where the marks went ----
+    const card = el('div', 'card');
+    card.append(el('h3', '', 'Where your marks went'));
+    if (max > 0) {
+      const bar = el('div', 'stat-bar');
+      const seg = (cls, v) => {
+        if (!(v > 0)) return;
+        const s = el('span', 'stat-seg ' + cls);
+        s.style.width = `${(v / max) * 100}%`;
+        bar.append(s);
+      };
+      seg('ok', earned);
+      seg('bad', missedOnWrong);
+      seg('blank', blankLost);
+      card.append(bar);
+      card.append(el('div', 'muted small',
+        `Full marks split by result: correct ${round2(earned)} • wrong ${round2(missedOnWrong)} • blank ${round2(blankLost)}`));
+    }
+    card.append(mbRow('Full marks', String(round2(max))));
+    card.append(mbRow('Lost on wrong answers', loss(wrongLost), 'neg',
+      `${wrongN} wrong: ${round2(missedOnWrong)} missed + ${round2(penalty)} negative marking`));
+    card.append(mbRow('Left blank', loss(blankLost), 'dim', `${blankN} blank`));
+    const pct = max > 0 ? ` (${Math.round((score / max) * 1000) / 10}%)` : '';
+    card.append(mbRow('Your score', `${round2(score)} / ${round2(max)}${pct}`, 'total'));
+    body.append(card);
+
+    // ---- Card 2: smart attempting ----
+    const sm = el('div', 'card');
+    sm.append(el('h3', '', 'Smart attempting'));
+
+    // Expected extra marks if blanks were attempted at the student's own accuracy
+    let extra = 0, usedBlank = 0, skipped = 0;
+    per.forEach(p => {
+      if (!p.st.blank) return;
+      const att = p.st.correct + p.st.wrong;
+      if (att < MIN_ATTEMPTED) { skipped++; return; }
+      const acc = p.st.correct / att;
+      extra += p.st.blank * (acc * p.m - (1 - acc) * p.n);
+      usedBlank += p.st.blank;
+    });
+    const qs = usedBlank === 1 ? 'question' : 'questions';
+    let msg;
+    if (!blankN) {
+      msg = 'You attempted every question, so nothing was left on the table.';
+    } else if (!usedBlank) {
+      msg = `Not enough attempted questions to estimate (need ${MIN_ATTEMPTED}+ in a subject).`;
+    } else if (extra > 0) {
+      msg = `If you had attempted the ${usedBlank} blank ${qs} at your own accuracy, ` +
+            `you could expect about +${round2(extra)} more marks (an estimate, not a guarantee).`;
+    } else {
+      msg = `At your current accuracy, attempting the ${usedBlank} blank ${qs} ` +
+            `would not have added marks (expected ${signed(extra)}).`;
+    }
+    if (usedBlank && skipped) {
+      msg += ` Subjects with fewer than ${MIN_ATTEMPTED} attempted questions were left out.`;
+    }
+    sm.append(el('div', 'an-line', msg));
+
+    sm.append(el('div', 'an-sub', 'Break-even accuracy'));
+    sm.append(el('div', 'muted small',
+      'Below this accuracy, attempting a question loses marks on average.'));
+    per.forEach(p => {
+      if (!p.st.total) return;
+      let line;
+      if (p.n <= 0) {
+        line = `${p.name}: no negative marking, so attempting never costs marks.`;
+      } else {
+        const att = p.st.correct + p.st.wrong;
+        const be = Math.round((p.n / (p.m + p.n)) * 1000) / 10;
+        const acc = att ? Math.round((p.st.correct / att) * 1000) / 10 : null;
+        const net = p.st.correct * p.m - p.st.wrong * p.n;
+        line = `${p.name}: break-even ${be}% • your accuracy ${acc === null ? '—' : acc + '%'} • ` +
+               `attempted questions netted ${signed(net)} marks`;
+      }
+      sm.append(el('div', 'an-line', line));
+    });
+    body.append(sm);
+  }
+
+  // Rule-based "what to improve" items. Each: {tag, cls, text, filter}
+  function focusItems(subjects) {
+    const multi = subjects.length > 1;
+    const scope = subjects.length === 1 ? subjects[0].name : null;
+    const pct1 = x => Math.round(x * 1000) / 10;
+    const pl = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+    const per = [];
+    const chapters = [];
+    let easyWrong = 0, wrongLost = 0, penalty = 0, blankLost = 0, wrongN = 0, blankN = 0;
+    subjects.forEach(s => {
+      const m = Number(s.marks) || 0;
+      const n = Number(s.neg) || 0;
+      const st = emptyStat();
+      const chMap = new Map();
+      s.items.forEach(it => {
+        addRow(st, it.row.status);
+        const ch = labelOf(it.q.chapter);
+        let c = chMap.get(ch);
+        if (!c) { c = { subject: s.name, name: ch, st: emptyStat() }; chMap.set(ch, c); }
+        addRow(c.st, it.row.status, it.row.time_spent, m, n);
+        if (it.row.status === 'wrong' && diffOf(it.q) === 'easy') easyWrong++;
+      });
+      per.push({ name: s.name, st, m, n });
+      chMap.forEach(c => chapters.push(c));
+      wrongN += st.wrong;
+      blankN += st.blank;
+      penalty += st.wrong * n;
+      wrongLost += st.wrong * (m + n);
+      blankLost += st.blank * m;
+    });
+
+    const items = [];
+
+    // A) accuracy below break-even (worst gap only)
+    let guess = null;
+    per.forEach(p => {
+      const att = p.st.correct + p.st.wrong;
+      if (p.n <= 0 || att < MIN_ATTEMPTED) return;
+      const acc = p.st.correct / att;
+      const be = p.n / (p.m + p.n);
+      if (acc < be && (!guess || be - acc > guess.gap)) guess = { p, acc, be, gap: be - acc };
+    });
+    if (guess) {
+      items.push({
+        tag: 'Guessing', cls: 'weak',
+        text: `${guess.p.name}: your accuracy (${pct1(guess.acc)}%) is below the break-even ` +
+              `(${pct1(guess.be)}%). Skip questions you are unsure about instead of guessing.`,
+        filter: { subject: guess.p.name, status: 'wrong' },
+      });
+    }
+
+    // B) weakest chapters (enough data, named chapters only)
+    const named = chapters.filter(c => c.name !== 'Unknown' && c.st.total >= MIN_SAMPLE);
+    named
+      .filter(c => c.st.correct / c.st.total < WEAK_BELOW)
+      .sort((x, y) => (x.st.correct / x.st.total) - (y.st.correct / y.st.total) || y.st.lost - x.st.lost)
+      .slice(0, 2)
+      .forEach(c => items.push({
+        tag: 'Weak chapter', cls: 'weak',
+        text: `${c.name}${multi ? ` (${c.subject})` : ''}: only ${c.st.correct} of ${c.st.total} correct, ` +
+              `${round2(c.st.lost)} marks lost. Revise this chapter first.`,
+        filter: { subject: c.subject, chapter: c.name },
+      }));
+
+    // C) easy questions answered wrong
+    if (easyWrong > 0) {
+      items.push({
+        tag: 'Easy misses', cls: 'avg',
+        text: `${pl(easyWrong, 'Easy question')} answered wrong. These are the quickest marks to win back.`,
+        filter: { subject: scope, difficulty: 'easy', status: 'wrong' },
+      });
+    }
+
+    // D) biggest marks leak: blank vs wrong
+    const lostTotal = wrongLost + blankLost;
+    if (lostTotal > 0) {
+      if (blankLost >= wrongLost) {
+        items.push({
+          tag: 'Blank', cls: 'avg',
+          text: `${pl(blankN, 'blank question')} cost ${round2(blankLost)} marks ` +
+                `(${Math.round((blankLost / lostTotal) * 100)}% of the marks you lost). ` +
+                'Try to attempt more of the questions you can solve.',
+          filter: { subject: scope, status: 'blank' },
+        });
+      } else {
+        items.push({
+          tag: 'Wrong answers', cls: 'avg',
+          text: `Wrong answers cost ${round2(wrongLost)} marks, including ${round2(penalty)} from ` +
+                'negative marking. Double-check before you answer.',
+          filter: { subject: scope, status: 'wrong' },
+        });
+      }
+    }
+
+    // E) strongest chapter (positive note)
+    const best = named
+      .filter(c => c.st.correct / c.st.total >= STRONG_AT)
+      .sort((x, y) => (y.st.correct / y.st.total) - (x.st.correct / x.st.total) || y.st.total - x.st.total)[0];
+    if (best) {
+      items.push({
+        tag: 'Strength', cls: 'strong',
+        text: `${best.name}${multi ? ` (${best.subject})` : ''}: ${best.st.correct} of ${best.st.total} correct. Keep it up.`,
+        filter: { subject: best.subject, chapter: best.name },
+      });
+    }
+
+    return items.slice(0, 5);
+  }
+
+  function buildFocus(body, subjects, onReview) {
+    const items = focusItems(subjects);
+    const card = el('div', 'card');
+    if (!items.length) {
+      card.append(el('p', 'muted center', 'No clear focus areas found. Attempt more questions to get specific advice.'));
+      body.append(card);
+      return;
+    }
+    if (onReview) card.append(el('div', 'muted small', 'Tap an item to see those questions in Review.'));
+    items.forEach(it => {
+      const row = el('div', 'fa-item' + (onReview ? ' tappable' : ''));
+      row.append(el('span', 'an-badge ' + it.cls, it.tag));
+      row.append(el('div', 'fa-text', it.text));
+      if (onReview) {
+        row.append(el('div', 'fa-go muted small', 'View questions →'));
+        row.addEventListener('click', () => onReview(it.filter));
+      }
+      card.append(row);
+    });
+    body.append(card);
+  }
+
+  function renderAnalysis(a, r, hooks) {
     const pane = el('div', 'stack result-pane');
 
     // Pair every result row with its question snapshot (+ marking scheme)
@@ -330,9 +588,12 @@ const resultScreen = (() => {
 
       const subjects = view.subject === 'all' ? all : all.filter(s => s.name === view.subject);
       content.replaceChildren(
-        section('Difficulty', 'diff', view.open, body => buildDifficulty(body, subjects)),
+        section('Focus areas', 'focus', view.open,
+          body => buildFocus(body, subjects, hooks && hooks.onReview)),
+        section('Marks breakdown', 'marks', view.open, body => buildMarks(body, subjects)),
         section('Chapter wise', 'chap', view.open,
           body => buildChapters(body, subjects, view.sort, key => { view.sort = key; draw(); })),
+        section('Difficulty', 'diff', view.open, body => buildDifficulty(body, subjects)),
       );
     };
 
@@ -435,6 +696,21 @@ const resultScreen = (() => {
     refreshOpts();
 
     pane.append(filterWrap, statusBar, rowsWrap);
+
+    // Deep link from Analysis. flt: {status, subject, chapter, topic, difficulty} (all optional)
+    pane.applyFilter = (flt) => {
+      flt = flt || {};
+      f.status = ['correct', 'wrong', 'blank'].includes(flt.status) ? flt.status : 'all';
+      f.marked = false;
+      subjF.setSelected(flt.subject ? [flt.subject] : []);
+      diffF.setSelected(flt.difficulty ? [cap(flt.difficulty)] : []);
+      refreshOpts();
+      chapF.setSelected(flt.chapter ? [flt.chapter] : []);
+      refreshOpts();
+      topicF.setSelected(flt.topic ? [flt.topic] : []);
+      refresh();
+    };
+
     refresh();
     return pane;
   }

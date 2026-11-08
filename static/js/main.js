@@ -769,6 +769,13 @@ function makeMultiSelect(label, onChange) {
     wrap, btn, list,
     getSelected: () => Array.from(selected),
     clear: () => { selected.clear(); list.querySelectorAll('input:checked').forEach(cb => cb.checked = false); updateBtnText(); },
+    // Set the selection programmatically (does not call onChange)
+    setSelected: (values) => {
+      selected.clear();
+      (values || []).forEach(v => selected.add(v));
+      list.querySelectorAll('input').forEach(cb => { cb.checked = selected.has(cb.value); });
+      updateBtnText();
+    },
     setItems,
   };
 }
