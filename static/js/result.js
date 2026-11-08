@@ -317,8 +317,6 @@ const resultScreen = (() => {
     head.append(el('span', 'row-badge ' + row.status, badge));
     head.append(el('span', 'row-title', `${subj.name} Q${index + 1}`));
     const metaBits = [];
-    if (row.choice) metaBits.push(`Tum: ${row.choice}`);
-    if (row.answer) metaBits.push(`Sahi: ${row.answer}`);
     if (row.time_spent) metaBits.push(`${formatDuration(row.time_spent)}`);
     head.append(el('span', 'row-meta', metaBits.join(' • ')));
     const toggle = el('button', 'icon-btn', '▾');
@@ -331,17 +329,19 @@ const resultScreen = (() => {
     body.hidden = true;
 
     // Render full question with solution
-    const qCard = renderQuestion(q, index + 1, { showSolution: true });
+    const qCard = renderQuestion(q, index + 1, {
+      showSolution: true,
+      showMarks: true,
+      choice: row.choice,
+      answer: row.answer,
+    });
     body.append(qCard);
 
-    // Extra answers line
-    const ansLine = el('div', 'ans-line');
-    ansLine.append(el('span', 'kv-label', 'Tumhara answer: '),
-                   el('span', '', row.choice || '—'));
-    ansLine.append(el('span', 'kv-label', ' | Sahi answer: '),
-                   el('span', '', row.answer || '—'));
-    if (row.marked) ansLine.append(el('span', 'chip marked-chip', 'Marked'));
-    body.append(ansLine);
+    if (row.marked) {
+      const ansLine = el('div', 'ans-line');
+      ansLine.append(el('span', 'chip marked-chip', 'Marked'));
+      body.append(ansLine);
+    }
 
     wrap.append(body);
 

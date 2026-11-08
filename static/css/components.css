@@ -1143,3 +1143,9 @@ mjx-container[display="true"] {
 .stat-seg.ok { background: #2e7d32; }
 .stat-seg.bad { background: #c62828; }
 .stat-seg.blank { background: var(--muted); opacity: 0.5; }
+/* ---- Result review: option marks ---- */
+.option.opt-correct { border-color: #2e7d32; background: rgba(46, 125, 50, 0.12); }
+.option.opt-wrong { border-color: #c62828; background: rgba(198, 40, 40, 0.12); }
+.option .opt-mark { flex: 0 0 auto; margin-left: auto; padding-left: 8px; font-weight: 700; font-size: 18px; }
+.option .opt-mark.ok { color: #2e7d32; }
+.option .opt-mark.bad { color: #c62828; }

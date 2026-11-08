@@ -60,6 +60,16 @@ function renderQuestion(q, no, opts = {}) {
     const li = el('li', 'option');
     li.append(el('span', 'lbl', String.fromCharCode(65 + i)), el('span', 'otext', String(o)));
     if (opts.choice === String.fromCharCode(65 + i)) li.classList.add('selected');
+    if (opts.showMarks) {
+      const letter = String.fromCharCode(65 + i);
+      if (letter === opts.answer) {
+        li.classList.add('opt-correct');
+        li.append(el('span', 'opt-mark ok', '✓'));
+      } else if (letter === opts.choice) {
+        li.classList.add('opt-wrong');
+        li.append(el('span', 'opt-mark bad', '✗'));
+      }
+    }
     if (opts.onSelect) {
       li.classList.add('tap');
       li.addEventListener('click', () => opts.onSelect(String.fromCharCode(65 + i)));
