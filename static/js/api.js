@@ -99,6 +99,6 @@ const api = {
     }),
   submit: (id, subject, index, spent) =>
     api.post(`/api/attempts/${encodeURIComponent(id)}/submit`, { subject, index, spent }),
-  retry: (id, mode) =>
-    api.post(`/api/attempts/${encodeURIComponent(id)}/retry`, { mode }),
+  retry: (id, mode, filter) =>
+    api.post(`/api/attempts/${encodeURIComponent(id)}/retry`, filter ? { mode, filter } : { mode }),
 };

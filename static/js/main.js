@@ -480,8 +480,8 @@ async function refreshAttempt() {
 }
 
 // Submitted attempt ke snapshot se naya attempt (mode: 'full' | 'wrong').
-function startRetry(attemptId, mode) {
-  return api.retry(attemptId, mode).then(n => {
+function startRetry(attemptId, mode, filter) {
+  return api.retry(attemptId, mode, filter).then(n => {
     location.hash = `#/attempt/${n.id}`;
     return n;
   });
@@ -508,7 +508,7 @@ async function showAttempt(id) {
     stopTicker(); stopSync();
     state.screen = 'result';
     show('Result', resultScreen.render(state.attempt, {
-      onRetry: (mode) => startRetry(state.attempt.id, mode),
+      onRetry: (mode, label, filter) => startRetry(state.attempt.id, mode, filter),
     }));
     return;
   }
@@ -605,7 +605,7 @@ function renderTest() {
     if (a && a.status === 'submitted') {
       state.screen = 'result';
       show('Result', resultScreen.render(a, {
-        onRetry: (mode) => startRetry(a.id, mode),
+        onRetry: (mode, label, filter) => startRetry(a.id, mode, filter),
       }));
     }
     return;

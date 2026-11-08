@@ -19,6 +19,7 @@ const resultScreen = (() => {
     const tabs = [
       { key: 'overview', label: 'Overview', pane: renderOverview(a, r, opts) },
       { key: 'analysis', label: 'Analysis', pane: renderAnalysis(a, r, {
+        onRetry: opts && opts.onRetry,
         onReview: (flt) => {
           reviewPane.applyFilter(flt);
           show('review');
@@ -236,6 +237,29 @@ const resultScreen = (() => {
     return d;
   }
 
+  // Practice button: builds a new attempt from THIS attempt's own wrong/blank
+  // questions, narrowed by filter ({subject, chapter, topic, difficulty, statuses}).
+  function practiceBtn(count, filter, onRetry, label) {
+    const wrap = el('div', 'practice-wrap');
+    const name = label || 'Practice';
+    const b = el('button', 'btn ghost small', `↻ ${name} (${count})`);
+    b.type = 'button';
+    const msg = el('div', 'muted small', '');
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (b.disabled) return;
+      b.disabled = true;
+      msg.textContent = 'Creating attempt...';
+      new Promise(res => res(onRetry('wrong', name, filter))).catch(err => {
+        b.disabled = false;
+        msg.textContent = 'Retry failed: ' + ((err && err.message) || 'unknown');
+      });
+    });
+    wrap.addEventListener('click', e => e.stopPropagation());
+    wrap.append(b, msg);
+    return wrap;
+  }
+
   function buildDifficulty(body, subjects) {
     const diffStats = {};
     DIFFS.forEach(d => { diffStats[d] = emptyStat(); });
@@ -263,7 +287,7 @@ const resultScreen = (() => {
     });
   }
 
-  function buildChapters(body, subjects, sortMode, onSort) {
+  function buildChapters(body, subjects, sortMode, onSort, onRetry) {
     const sortBar = el('div', 'filter-bar an-sort');
     SORTS.forEach(([key, label]) => {
       const b = el('button', 'filter-btn' + (sortMode === key ? ' active' : ''), label);
@@ -301,8 +325,17 @@ const resultScreen = (() => {
         head.classList.add('tappable');
         const sub = el('div', 'an-topics');
         sub.hidden = true;
-        [...c.topics.values()].sort(cmp)
-          .forEach(t => sub.append(detailRow(`${t.name} (${t.st.total})`, t.st)));
+        const cw = c.st.wrong + c.st.blank;
+        if (onRetry && cw > 0) {
+          sub.append(practiceBtn(cw, { subject: s.name, chapter: c.name }, onRetry, 'Practice chapter'));
+        }
+        [...c.topics.values()].sort(cmp).forEach(t => {
+          sub.append(detailRow(`${t.name} (${t.st.total})`, t.st));
+          const tw = t.st.wrong + t.st.blank;
+          if (onRetry && tw > 0) {
+            sub.append(practiceBtn(tw, { subject: s.name, chapter: c.name, topic: t.name }, onRetry, 'Practice topic'));
+          }
+        });
         head.addEventListener('click', () => {
           sub.hidden = !sub.hidden;
           head.classList.toggle('open', !sub.hidden);
@@ -495,6 +528,7 @@ const resultScreen = (() => {
         text: `${c.name}${multi ? ` (${c.subject})` : ''}: only ${c.st.correct} of ${c.st.total} correct, ` +
               `${round2(c.st.lost)} marks lost. Revise this chapter first.`,
         filter: { subject: c.subject, chapter: c.name },
+        retry: { count: c.st.wrong + c.st.blank, filter: { subject: c.subject, chapter: c.name }, label: 'Practice chapter' },
       }));
 
     // C) easy questions answered wrong
@@ -503,6 +537,11 @@ const resultScreen = (() => {
         tag: 'Easy misses', cls: 'avg',
         text: `${pl(easyWrong, 'Easy question')} answered wrong. These are the quickest marks to win back.`,
         filter: { subject: scope, difficulty: 'easy', status: 'wrong' },
+        retry: {
+          count: easyWrong,
+          filter: { subject: scope, difficulty: 'easy', statuses: ['wrong'] },
+          label: 'Retry Easy misses',
+        },
       });
     }
 
@@ -542,7 +581,7 @@ const resultScreen = (() => {
     return items.slice(0, 5);
   }
 
-  function buildFocus(body, subjects, onReview) {
+  function buildFocus(body, subjects, onReview, onRetry) {
     const items = focusItems(subjects);
     const card = el('div', 'card');
     if (!items.length) {
@@ -558,6 +597,9 @@ const resultScreen = (() => {
       if (onReview) {
         row.append(el('div', 'fa-go muted small', 'View questions →'));
         row.addEventListener('click', () => onReview(it.filter));
+      }
+      if (onRetry && it.retry && it.retry.count > 0) {
+        row.append(practiceBtn(it.retry.count, it.retry.filter, onRetry, it.retry.label));
       }
       card.append(row);
     });
@@ -796,6 +838,111 @@ const resultScreen = (() => {
     body.append(cardE);
   }
 
+  // ---------- Marked for review ----------
+  const MARK_TYPES = [
+    { key: 'mc', label: 'Marked + correct', cls: 'strong', seg: 'ok',
+      desc: 'You doubted these but got them right. Your instinct is better than you think.' },
+    { key: 'mw', label: 'Marked + wrong', cls: 'weak', seg: 'bad',
+      desc: 'Your doubt was justified. Revise the concepts behind these.' },
+    { key: 'mb', label: 'Marked + blank', cls: 'avg', seg: 'blank',
+      desc: 'Marked to revisit but never answered. Keep some time at the end to return to marked questions.' },
+  ];
+
+  function buildMarked(body, subjects, onReview) {
+    const groups = { mc: [], mw: [], mb: [] };
+    const plain = emptyStat();       // not marked
+    const plainWrong = [];
+    let total = 0;
+    subjects.forEach(s => s.items.forEach(it => {
+      total++;
+      const key = `${s.name}|${it.i}`;
+      const st = statusOf(it.row);
+      if (it.row.marked) {
+        groups[st === 'correct' ? 'mc' : st === 'wrong' ? 'mw' : 'mb'].push(key);
+      } else {
+        addRow(plain, st);
+        if (st === 'wrong') plainWrong.push(key);
+      }
+    }));
+    const markedN = groups.mc.length + groups.mw.length + groups.mb.length;
+
+    const card = el('div', 'card');
+    if (!total) {
+      card.append(el('p', 'muted center', 'No questions.'));
+      body.append(card);
+      return;
+    }
+    if (!markedN) {
+      card.append(el('p', 'muted center', 'No questions were marked for review in this attempt.'));
+      body.append(card);
+      return;
+    }
+
+    // ---- distribution of marked questions ----
+    card.append(el('h3', '', `Marked for review (${markedN})`));
+    const bar = el('div', 'stat-bar');
+    MARK_TYPES.forEach(t => {
+      const n = groups[t.key].length;
+      if (!n) return;
+      const seg = el('span', 'stat-seg ' + t.seg);
+      seg.style.width = `${(n / markedN) * 100}%`;
+      bar.append(seg);
+    });
+    card.append(bar);
+    if (onReview) card.append(el('div', 'muted small', 'Tap a group to see those questions in Review.'));
+    MARK_TYPES.forEach(t => {
+      const keys = groups[t.key];
+      if (!keys.length) return;
+      const row = el('div', 'qt-row' + (onReview ? ' tappable' : ''));
+      const top = el('div', 'an-top');
+      const left = el('div', 'qt-left');
+      left.append(el('span', 'an-badge ' + t.cls, t.label));
+      top.append(left, el('div', 'qt-count', `${keys.length} (${Math.round((keys.length / markedN) * 100)}%)`));
+      row.append(top, el('div', 'fa-text', t.desc));
+      if (onReview) {
+        row.append(el('div', 'fa-go muted small', 'View questions →'));
+        row.addEventListener('click', () => onReview({ only: keys, label: `${t.label} (${keys.length})` }));
+      }
+      card.append(row);
+    });
+    body.append(card);
+
+    // ---- confidence insights ----
+    const ins = el('div', 'card');
+    ins.append(el('h3', '', 'Confidence insights'));
+    const mAtt = groups.mc.length + groups.mw.length;
+    const uAtt = plain.correct + plain.wrong;
+    const mAcc = mAtt ? Math.round((groups.mc.length / mAtt) * 100) : null;
+    const uAcc = uAtt ? Math.round((plain.correct / uAtt) * 100) : null;
+    ins.append(el('div', 'an-line',
+      `Accuracy on marked questions: ${mAcc === null ? '—' : mAcc + '%'} (${mAtt} attempted) • ` +
+      `on unmarked: ${uAcc === null ? '—' : uAcc + '%'} (${uAtt} attempted)`));
+    if (mAtt >= MIN_SAMPLE && uAtt >= MIN_SAMPLE) {
+      ins.append(el('div', 'an-line', mAcc >= uAcc
+        ? 'Marked questions did as well as the rest, so some of your doubts were unnecessary. Trust your first instinct a little more.'
+        : 'Your doubt was a good signal: marked questions were answered less accurately than the rest.'));
+    } else if (mAtt && uAtt) {
+      ins.append(el('div', 'muted small', `Too few questions for a reliable comparison (need ${MIN_SAMPLE}+ on each side).`));
+    }
+    if (plainWrong.length) {
+      const share = uAtt ? Math.round((plainWrong.length / uAtt) * 100) : 0;
+      const row = el('div', 'fa-item' + (onReview ? ' tappable' : ''));
+      row.append(el('span', 'an-badge weak', 'Sure but wrong'));
+      row.append(el('div', 'fa-text',
+        `${plainWrong.length} wrong ${plainWrong.length === 1 ? 'answer was' : 'answers were'} not marked ` +
+        `(${share}% of your unmarked attempts). You felt sure and were still wrong, so double-check even the answers you feel confident about.`));
+      if (onReview) {
+        row.append(el('div', 'fa-go muted small', 'View questions →'));
+        row.addEventListener('click', () =>
+          onReview({ only: plainWrong, label: `Wrong, not marked (${plainWrong.length})` }));
+      }
+      ins.append(row);
+    } else if (uAtt) {
+      ins.append(el('div', 'an-line', 'None of your unmarked answers was wrong. Your confidence matched your results.'));
+    }
+    body.append(ins);
+  }
+
   function renderAnalysis(a, r, hooks) {
     const pane = el('div', 'stack result-pane');
 
@@ -832,14 +979,17 @@ const resultScreen = (() => {
       const subjects = view.subject === 'all' ? all : all.filter(s => s.name === view.subject);
       content.replaceChildren(
         section('Focus areas', 'focus', view.open,
-          body => buildFocus(body, subjects, hooks && hooks.onReview)),
+          body => buildFocus(body, subjects, hooks && hooks.onReview, hooks && hooks.onRetry)),
         section('Marks breakdown', 'marks', view.open, body => buildMarks(body, subjects)),
         section('Chapter wise', 'chap', view.open,
-          body => buildChapters(body, subjects, view.sort, key => { view.sort = key; draw(); })),
+          body => buildChapters(body, subjects, view.sort, key => { view.sort = key; draw(); },
+            hooks && hooks.onRetry)),
         section('Question types', 'types', view.open,
           body => buildTypes(body, subjects, hooks && hooks.onReview, a)),
         section('Time analysis', 'time', view.open,
           body => buildTime(body, subjects, hooks && hooks.onReview)),
+        section('Marked for review', 'marked', view.open,
+          body => buildMarked(body, subjects, hooks && hooks.onReview)),
         section('Difficulty', 'diff', view.open, body => buildDifficulty(body, subjects)),
       );
     };

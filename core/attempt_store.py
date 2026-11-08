@@ -144,11 +144,57 @@ def create_attempt(template, test, test_id, test_ids=None):
         save(attempt)
     return attempt# ---------- retry (submitted snapshot se naya attempt) ----------
 
-def create_retry(attempt, mode):
+RETRY_FILTER_KEYS = ("subject", "chapter", "topic", "difficulty")
+
+
+def _norm_label(v):
+    """chapter/topic: khaali ya missing -> 'Unknown' (result.js labelOf jaisa)."""
+    return v.strip() if isinstance(v, str) and v.strip() else "Unknown"
+
+
+def _norm_diff(v):
+    d = v.strip().lower() if isinstance(v, str) else ""
+    return d if d in ("easy", "medium", "hard") else "unknown"
+
+
+def _retry_statuses(flt):
+    """Filter me 'statuses' ho to wahi, warna wrong + blank."""
+    sts = (flt or {}).get("statuses")
+    if isinstance(sts, (list, tuple)) and sts:
+        return tuple(s for s in sts if s in ("wrong", "blank"))
+    return ("wrong", "blank")
+
+
+def _matches_filter(q, subject, flt):
+    """Question snapshot filter se match karta hai? Filter me jo key nahi, wo ignore."""
+    if not flt:
+        return True
+    if flt.get("subject") and flt["subject"] != subject:
+        return False
+    q = q if isinstance(q, dict) else {}
+    if flt.get("chapter") and _norm_label(q.get("chapter")) != flt["chapter"]:
+        return False
+    if flt.get("topic") and _norm_label(q.get("topic")) != flt["topic"]:
+        return False
+    if flt.get("difficulty") and _norm_diff(q.get("difficulty")) != flt["difficulty"]:
+        return False
+    return True
+
+
+def _filter_label(flt):
+    parts = [flt[k] for k in ("chapter", "topic", "difficulty") if flt.get(k)]
+    if not parts and flt.get("subject"):
+        parts = [flt["subject"]]
+    return " / ".join(str(p) for p in parts)
+
+
+def create_retry(attempt, mode, flt=None):
     """Submitted attempt ke snapshot se naya attempt banao.
 
     mode "full": saare questions (wahi template aur timing).
     mode "wrong": sirf wrong + blank questions; time proportionally scale hota hai.
+    flt (optional, sirf mode "wrong"): {subject, chapter, topic, difficulty, statuses}
+    se aur chhota set. Questions hamesha isi attempt ke snapshot se aate hain.
     Source test file(s) attach nahi hote, isliye retry submit kuch delete nahi karta.
     Retry ke liye koi question na mile to None.
     """
@@ -173,8 +219,10 @@ def create_retry(attempt, mode):
         keep = list(range(len(qs)))
         if mode == "wrong":
             rows = rows_by_subj.get(name) or []
+            sts = _retry_statuses(flt)
             keep = [i for i in keep if i < len(rows)
-                    and rows[i].get("status") in ("wrong", "blank")]
+                    and rows[i].get("status") in sts
+                    and _matches_filter(qs[i], name, flt)]
         orig_total += len(qs)
         if not keep:
             continue
@@ -197,8 +245,13 @@ def create_retry(attempt, mode):
             float(src_tpl.get("total_minutes") or 0) * keep_total / orig_total))
 
     base_name = attempt.get("test_name") or "Test"
+    if mode == "full":
+        new_name = base_name
+    else:
+        label = _filter_label(flt) if flt else ""
+        new_name = f"{base_name} ({label}: Wrong + Blank)" if label else f"{base_name} (Wrong + Blank)"
     test = {
-        "name": base_name if mode == "full" else f"{base_name} (Wrong + Blank)",
+        "name": new_name,
         "subjects": subjects,
     }
     # test_id None: retry attempt original test file ko touch nahi karta.

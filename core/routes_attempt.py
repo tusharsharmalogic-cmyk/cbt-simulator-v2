@@ -274,7 +274,28 @@ def retry(aid):
     mode = body.get("mode") or "full"
     if mode not in ("full", "wrong"):
         return jsonify(error="mode 'full' ya 'wrong' hona chahiye"), 422
-    n = attempt_store.create_retry(a, mode)
+    flt = None
+    raw = body.get("filter")
+    if raw is not None:
+        if mode != "wrong" or not isinstance(raw, dict):
+            return jsonify(error="filter sirf mode 'wrong' ke saath, object ke roop me"), 422
+        flt = {}
+        for k in attempt_store.RETRY_FILTER_KEYS:
+            v = raw.get(k)
+            if v is None or v == "":
+                continue
+            if not isinstance(v, str):
+                return jsonify(error=f"filter.{k} string hona chahiye"), 422
+            flt[k] = v.strip()
+        sts = raw.get("statuses")
+        if sts is not None:
+            if (not isinstance(sts, list) or not sts
+                    or any(s not in ("wrong", "blank") for s in sts)):
+                return jsonify(error="filter.statuses me 'wrong' / 'blank' hi allowed hain"), 422
+            flt["statuses"] = sts
+        if not flt:
+            flt = None
+    n = attempt_store.create_retry(a, mode, flt)
     if n is None:
         return jsonify(error="Retry ke liye koi question nahi mila"), 422
     return jsonify(attempt_store.client_view(n, strip_answers=True))
