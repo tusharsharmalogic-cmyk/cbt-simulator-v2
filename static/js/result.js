@@ -139,6 +139,17 @@ const resultScreen = (() => {
   const STRONG_AT = 0.75;    // correct / total
   const WEAK_BELOW = 0.4;
   const MIN_ATTEMPTED = 5;   // min attempted questions in a subject for the blank-estimate
+  const SLOW_FACTOR = 1.5;   // "slow" = at least this many times the subject's median time
+  const MIN_SLOW_SEC = 15;   // ...but never below this many seconds
+  const GAVE_UP_SEC = 5;     // blank with at least this much time = tried, then left blank
+  const TYPES = [
+    { key: 'fast_ok', label: 'Quick & correct', cls: 'strong', desc: 'You know these well.' },
+    { key: 'slow_ok', label: 'Slow but correct', cls: 'avg', desc: 'Right answer, but it took long. Practise for speed.' },
+    { key: 'fast_bad', label: 'Quick & wrong', cls: 'weak', desc: 'Likely careless mistakes or guesses. Read the question and options again.' },
+    { key: 'slow_bad', label: 'Slow & wrong', cls: 'weak', desc: 'Time spent and still wrong. Probably a concept gap, so revise the theory.' },
+    { key: 'gave_up', label: 'Blank after trying', cls: 'avg', desc: 'You spent time and then left it blank. Learn the method, or decide sooner to skip.' },
+    { key: 'skipped', label: 'Skipped / not reached', cls: 'low', desc: 'Blank with almost no time spent. You may have run out of time or skipped on sight.' },
+  ];
   const SORTS = [['weak', 'Weakest'], ['lost', 'Most marks lost'], ['time', 'Most time']];
 
   function emptyStat() { return { total: 0, correct: 0, wrong: 0, blank: 0, time: 0, lost: 0 }; }
@@ -553,6 +564,238 @@ const resultScreen = (() => {
     body.append(card);
   }
 
+  function medianOf(arr) {
+    const s = [...arr].sort((x, y) => x - y);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+
+  // Seconds at or above which a question counts as "slow" in this subject.
+  function slowThreshold(s, a) {
+    const times = s.items.map(it => Number(it.row.time_spent) || 0).filter(t => t > 0);
+    if (times.length >= 3) {
+      return { sec: Math.max(MIN_SLOW_SEC, SLOW_FACTOR * medianOf(times)), basis: `${SLOW_FACTOR}x your median time` };
+    }
+    const tq = Object.values((a && a.questions) || {}).reduce((n, v) => n + v.length, 0);
+    const mins = Number(a && a.template && a.template.total_minutes) || 0;
+    if (tq > 0 && mins > 0) {
+      return { sec: Math.max(MIN_SLOW_SEC, (mins * 60) / tq), basis: 'test time per question' };
+    }
+    return { sec: 60, basis: 'default 60s' };
+  }
+
+  function classifyQ(row, slowAt) {
+    const t = Number(row.time_spent) || 0;
+    if (row.status === 'correct') return t >= slowAt ? 'slow_ok' : 'fast_ok';
+    if (row.status === 'wrong') return t >= slowAt ? 'slow_bad' : 'fast_bad';
+    return t >= GAVE_UP_SEC ? 'gave_up' : 'skipped';
+  }
+
+  function buildTypes(body, subjects, onReview, a) {
+    const groups = {};
+    TYPES.forEach(t => { groups[t.key] = []; });
+    const notes = [];
+    subjects.forEach(s => {
+      const th = slowThreshold(s, a);
+      notes.push(`${s.name}: slow = ${formatDuration(th.sec)} or more (${th.basis})`);
+      s.items.forEach(it => groups[classifyQ(it.row, th.sec)].push(`${s.name}|${it.i}`));
+    });
+    const total = TYPES.reduce((n, t) => n + groups[t.key].length, 0);
+
+    const card = el('div', 'card');
+    if (!total) {
+      card.append(el('p', 'muted center', 'No questions.'));
+      body.append(card);
+      return;
+    }
+
+    const bar = el('div', 'stat-bar');
+    TYPES.forEach(t => {
+      const n = groups[t.key].length;
+      if (!n) return;
+      const seg = el('span', 'stat-seg type-' + t.key.replace('_', '-'));
+      seg.style.width = `${(n / total) * 100}%`;
+      bar.append(seg);
+    });
+    card.append(bar);
+    if (onReview) card.append(el('div', 'muted small', 'Tap a group to see those questions in Review.'));
+
+    TYPES.forEach(t => {
+      const keys = groups[t.key];
+      if (!keys.length) return;
+      const row = el('div', 'qt-row' + (onReview ? ' tappable' : ''));
+      const top = el('div', 'an-top');
+      const left = el('div', 'qt-left');
+      left.append(el('span', 'qt-dot type-' + t.key.replace('_', '-')), el('span', 'an-badge ' + t.cls, t.label));
+      top.append(left, el('div', 'qt-count', `${keys.length} (${Math.round((keys.length / total) * 100)}%)`));
+      row.append(top, el('div', 'fa-text', t.desc));
+      if (onReview) {
+        row.append(el('div', 'fa-go muted small', 'View questions →'));
+        row.addEventListener('click', () => onReview({ only: keys, label: `${t.label} (${keys.length})` }));
+      }
+      card.append(row);
+    });
+
+    notes.forEach(n => card.append(el('div', 'muted small', n)));
+    card.append(el('div', 'muted small',
+      `Blank questions with ${GAVE_UP_SEC}s or more spent are counted as Blank after trying.`));
+    body.append(card);
+  }
+
+  // ---------- Time analysis ----------
+  function avgOf(st) { return st.total ? st.time / st.total : 0; }
+
+  function statusOf(row) {
+    return row && row.status === 'correct' ? 'correct' : row && row.status === 'wrong' ? 'wrong' : 'blank';
+  }
+
+  // One row with a time bar. fill: bar colour class (correct | wrong | blank | neutral).
+  function timeRow(label, avg, max, fill, extra, badge) {
+    const row = el('div', 'an-row');
+    const top = el('div', 'an-top');
+    top.append(el('div', 'an-label', label));
+    if (badge) top.append(badge);
+    row.append(top);
+    if (max > 0 && avg > 0) {
+      const track = el('div', 'time-bar');
+      const f = el('span', 'time-bar-fill ' + fill);
+      f.style.width = `${Math.max(2, Math.round((avg / max) * 100))}%`;
+      track.append(f);
+      row.append(track);
+    }
+    if (extra) row.append(el('div', 'muted small', extra));
+    return row;
+  }
+
+  function buildTime(body, subjects, onReview) {
+    const T = it => Number(it.row.time_spent) || 0;
+    let totalTime = 0, totalQ = 0;
+    subjects.forEach(s => s.items.forEach(it => { totalTime += T(it); totalQ++; }));
+    if (!totalQ || !(totalTime > 0)) {
+      const empty = el('div', 'card');
+      empty.append(el('p', 'muted center', 'No time data recorded.'));
+      body.append(empty);
+      return;
+    }
+
+    body.append(el('div', 'muted small',
+      'Averages count every question in the group, including unattempted ones with 0s.'));
+
+    // ---- A) average time per subject ----
+    const subjStats = subjects.map(s => {
+      const st = emptyStat();
+      s.items.forEach(it => addRow(st, it.row.status, it.row.time_spent));
+      return { name: s.name, st };
+    }).filter(p => p.st.total);
+    const maxSubj = subjStats.reduce((m, p) => Math.max(m, avgOf(p.st)), 0);
+    const cardA = el('div', 'card');
+    cardA.append(el('h3', '', 'Average time per subject'));
+    subjStats.forEach(p => {
+      cardA.append(timeRow(`${p.name} (${p.st.total})`, avgOf(p.st), maxSubj, 'neutral',
+        `Avg ${formatDuration(avgOf(p.st))}/Q • Total ${formatDuration(p.st.time)}`));
+    });
+    body.append(cardA);
+
+    // ---- B) correct vs wrong vs blank ----
+    const byStatus = { correct: emptyStat(), wrong: emptyStat(), blank: emptyStat() };
+    subjects.forEach(s => s.items.forEach(it => addRow(byStatus[statusOf(it.row)], it.row.status, it.row.time_spent)));
+    const maxStatus = Math.max(avgOf(byStatus.correct), avgOf(byStatus.wrong), avgOf(byStatus.blank));
+    const cardB = el('div', 'card');
+    cardB.append(el('h3', '', 'Correct vs wrong'));
+    [['correct', 'Correct'], ['wrong', 'Wrong'], ['blank', 'Blank']].forEach(([k, label]) => {
+      const st = byStatus[k];
+      if (!st.total) return;
+      cardB.append(timeRow(`${label} (${st.total})`, avgOf(st), maxStatus, k,
+        `Avg ${formatDuration(avgOf(st))}/Q • Total ${formatDuration(st.time)}`));
+    });
+    const ac = avgOf(byStatus.correct), aw = avgOf(byStatus.wrong);
+    if (byStatus.correct.total && byStatus.wrong.total && ac > 0 && aw > 0) {
+      if (aw >= ac * 1.2) {
+        cardB.append(el('div', 'an-line',
+          'You spend more time on wrong answers than on correct ones. Long struggles often end in a miss, so consider skipping and coming back.'));
+      } else if (aw <= ac * 0.8) {
+        cardB.append(el('div', 'an-line',
+          'Your wrong answers took less time than the correct ones. You may be rushing, so read the question and options again.'));
+      } else {
+        cardB.append(el('div', 'an-line', 'Correct and wrong answers took a similar amount of time.'));
+      }
+    }
+    body.append(cardB);
+
+    // ---- C) top 5 time sinks ----
+    const sinks = [];
+    subjects.forEach(s => s.items.forEach(it => {
+      const t = T(it);
+      if (t > 0) sinks.push({ s: s.name, i: it.i, t, status: statusOf(it.row), q: it.q });
+    }));
+    sinks.sort((x, y) => y.t - x.t || x.s.localeCompare(y.s) || x.i - y.i);
+    const top5 = sinks.slice(0, 5);
+    const cardC = el('div', 'card');
+    cardC.append(el('h3', '', 'Top 5 time sinks'));
+    if (onReview) cardC.append(el('div', 'muted small', 'Tap a question to open it in Review.'));
+    const STATUS_BADGE = {
+      correct: { cls: 'strong', label: 'Correct' },
+      wrong: { cls: 'weak', label: 'Wrong' },
+      blank: { cls: 'avg', label: 'Blank' },
+    };
+    top5.forEach(x => {
+      const b = STATUS_BADGE[x.status];
+      const where = [x.q && x.q.chapter, x.q && x.q.topic]
+        .map(v => (typeof v === 'string' ? v.trim() : ''))
+        .filter(Boolean).join(' • ');
+      const extra = `${formatDuration(x.t)}${where ? ' • ' + where : ''}`;
+      const row = timeRow(`${x.s} Q${x.i + 1}`, x.t, top5[0].t, x.status, extra,
+        el('span', 'an-badge ' + b.cls, b.label));
+      if (onReview) {
+        row.classList.add('tappable', 'ts-go');
+        row.addEventListener('click', () => onReview({ only: [`${x.s}|${x.i}`], label: `${x.s} Q${x.i + 1}` }));
+      }
+      cardC.append(row);
+    });
+    body.append(cardC);
+
+    // ---- D) chapter-wise time ----
+    const perSubj = subjects.map(s => {
+      const chapters = new Map();
+      s.items.forEach(it => {
+        const ch = labelOf(it.q.chapter);
+        let st = chapters.get(ch);
+        if (!st) { st = emptyStat(); chapters.set(ch, st); }
+        addRow(st, it.row.status, it.row.time_spent);
+      });
+      const list = [...chapters.entries()].map(([name, st]) => ({ name, st }))
+        .sort((x, y) => avgOf(y.st) - avgOf(x.st) || y.st.total - x.st.total);
+      return { name: s.name, list };
+    }).filter(p => p.list.length);
+    const maxCh = perSubj.reduce((m, p) => p.list.reduce((mm, c) => Math.max(mm, avgOf(c.st)), m), 0);
+    const cardD = el('div', 'card');
+    cardD.append(el('h3', '', 'Chapter-wise time'));
+    cardD.append(el('div', 'muted small', 'Slowest chapters first.'));
+    perSubj.forEach(p => {
+      if (perSubj.length > 1) cardD.append(el('div', 'an-sub', p.name));
+      p.list.forEach(c => {
+        cardD.append(timeRow(`${c.name} (${c.st.total})`, avgOf(c.st), maxCh, 'neutral',
+          `Avg ${formatDuration(avgOf(c.st))}/Q • Total ${formatDuration(c.st.time)}`));
+      });
+    });
+    body.append(cardD);
+
+    // ---- E) difficulty-wise time ----
+    const diffStats = {};
+    DIFFS.forEach(d => { diffStats[d] = emptyStat(); });
+    subjects.forEach(s => s.items.forEach(it => addRow(diffStats[diffOf(it.q)], it.row.status, it.row.time_spent)));
+    const maxDiff = DIFFS.reduce((m, d) => Math.max(m, avgOf(diffStats[d])), 0);
+    const cardE = el('div', 'card');
+    cardE.append(el('h3', '', 'Difficulty-wise time'));
+    DIFFS.forEach(d => {
+      const st = diffStats[d];
+      if (!st.total) return;
+      cardE.append(timeRow(`${DIFF_LABEL[d]} (${st.total})`, avgOf(st), maxDiff, 'neutral',
+        `Avg ${formatDuration(avgOf(st))}/Q • Total ${formatDuration(st.time)}`));
+    });
+    body.append(cardE);
+  }
+
   function renderAnalysis(a, r, hooks) {
     const pane = el('div', 'stack result-pane');
 
@@ -563,7 +806,7 @@ const resultScreen = (() => {
         name: s.name,
         marks: s.marks,
         neg: s.negative,
-        items: (s.rows || []).map((row, i) => ({ row, q: qs[i] || {} })),
+        items: (s.rows || []).map((row, i) => ({ row, q: qs[i] || {}, i })),
       };
     });
 
@@ -593,6 +836,10 @@ const resultScreen = (() => {
         section('Marks breakdown', 'marks', view.open, body => buildMarks(body, subjects)),
         section('Chapter wise', 'chap', view.open,
           body => buildChapters(body, subjects, view.sort, key => { view.sort = key; draw(); })),
+        section('Question types', 'types', view.open,
+          body => buildTypes(body, subjects, hooks && hooks.onReview, a)),
+        section('Time analysis', 'time', view.open,
+          body => buildTime(body, subjects, hooks && hooks.onReview)),
         section('Difficulty', 'diff', view.open, body => buildDifficulty(body, subjects)),
       );
     };
@@ -619,7 +866,7 @@ const resultScreen = (() => {
   function renderReview(a, r) {
     const pane = el('div', 'result-pane');
     const subjects = r.subjects || [];
-    const f = { status: 'all', marked: false };
+    const f = { status: 'all', marked: false, only: null, onlyLabel: '' };
     const cap = d => d.charAt(0).toUpperCase() + d.slice(1);
     const uniq = arr => Array.from(new Set(arr)).sort();
 
@@ -652,6 +899,8 @@ const resultScreen = (() => {
 
     const statusBar = el('div', 'filter-bar');
     const rowsWrap = el('div', 'rows-wrap');
+    const noteBar = el('div', 'filter-note');
+    noteBar.hidden = true;
 
     const mk = (label, active, onClick) => {
       const b = el('button', 'filter-btn' + (active ? ' active' : ''), label);
@@ -661,6 +910,15 @@ const resultScreen = (() => {
     };
 
     function refresh() {
+      noteBar.replaceChildren();
+      noteBar.hidden = !f.only;
+      if (f.only) {
+        noteBar.append(el('span', 'fn-text', `Showing: ${f.onlyLabel || 'selected questions'}`));
+        const clr = el('button', 'btn ghost small', 'Clear');
+        clr.type = 'button';
+        clr.addEventListener('click', () => { f.only = null; f.onlyLabel = ''; refresh(); });
+        noteBar.append(clr);
+      }
       statusBar.replaceChildren(
         mk('All', f.status === 'all', () => { f.status = 'all'; refresh(); }),
         mk('Correct', f.status === 'correct', () => { f.status = 'correct'; refresh(); }),
@@ -682,6 +940,7 @@ const resultScreen = (() => {
           const q = qs[i] || {};
           if (f.status !== 'all' && row.status !== f.status) return;
           if (f.marked && !row.marked) return;
+          if (f.only && !f.only.has(s.name + '|' + i)) return;
           if (!ok({ s: s.name, c: labelOf(q.chapter), t: labelOf(q.topic), d: cap(diffOf(q)) }, S, C, T, D)) return;
           rowsWrap.append(renderRow(a, s, row, q, i, maxT));
         });
@@ -695,13 +954,15 @@ const resultScreen = (() => {
     diffF.setItems(['Easy', 'Medium', 'Hard', 'Unknown'].filter(d => pool.some(it => it.d === d)));
     refreshOpts();
 
-    pane.append(filterWrap, statusBar, rowsWrap);
+    pane.append(filterWrap, noteBar, statusBar, rowsWrap);
 
     // Deep link from Analysis. flt: {status, subject, chapter, topic, difficulty} (all optional)
     pane.applyFilter = (flt) => {
       flt = flt || {};
       f.status = ['correct', 'wrong', 'blank'].includes(flt.status) ? flt.status : 'all';
       f.marked = false;
+      f.only = Array.isArray(flt.only) ? new Set(flt.only) : null;
+      f.onlyLabel = flt.label || '';
       subjF.setSelected(flt.subject ? [flt.subject] : []);
       diffF.setSelected(flt.difficulty ? [cap(flt.difficulty)] : []);
       refreshOpts();
