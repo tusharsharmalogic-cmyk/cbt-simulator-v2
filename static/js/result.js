@@ -54,6 +54,10 @@ const resultScreen = (() => {
     score.append(el('span', 'score-num', String(r.total.score)));
     score.append(el('span', 'score-max', ` / ${r.total.max}`));
     top.append(score);
+    if (r.total.max > 0) {
+      const pct = Math.round((r.total.score / r.total.max) * 1000) / 10;
+      top.append(el('div', 'score-pct center', `${pct}%`));
+    }
     top.append(el('div', 'muted center', `${(a.template && a.template.name) || ''} • ${a.test_name || ''}`));
 
     const cwb = el('div', 'result-cwb');

@@ -1152,3 +1152,5 @@ mjx-container[display="true"] {
 .time-bar-fill.correct { background: #2e7d32; }
 .time-bar-fill.wrong { background: #c62828; }
 .time-bar-fill.blank { background: var(--muted); opacity: 0.6; }
+/* ---- Result top: score percentage ---- */
+.score-pct { font-size: 18px; font-weight: 700; color: var(--primary); margin: -6px 0 10px; }
