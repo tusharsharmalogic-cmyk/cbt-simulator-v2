@@ -23,6 +23,9 @@ Open http://127.0.0.1:8080 on phone browser. Sirf `flask` chahiye (`pip install 
 - Koi bhi `.json` test import karo — ek ya multiple files, subject match case-insensitive ("Physics" = "physics").
 - Merge + dedupe (same `q` + same options), template ke count se cap, skip-report (kaunsa question kyun chhoda).
 - Available Tests screen: accordion detail, per-test preview (LaTeX/SVG render check), delete. Lamba test name poora wrap hota hai (truncate nahi).
+- Test card ke left me ab 📄 emoji nahi hai. Jis test pe template saved hai uske left me chhota **gol ▶ (Start)** button aata hai; baaki tests pe kuch nahi (naam seedha shuru hota hai). ▶ dabane par us template + us test se attempt ban kar test seedha khulta hai (aur us test ka schedule entry hat jaati hai). ▶ pe tap se card khulta/select nahi hota.
+- Har test card pe **📋 Template** button: us test ke liye template chuno (server pe save, `data/test_templates.json`). Save hone ke baad card me hara "📋 template-name" chip aur body me Start New Test jaisi **Test Details** (kitne Q chahiye vs test me kitne, marking, time/auto-time) dikhti hain. Template badalna ho to wahi button (Change Template) ya Remove. Subject ka naam template aur test me bilkul same (case bhi) hona chahiye, warna Details me wo subject nahi dikhta (card pe "match nahi karte" note aata hai).
+- **Schedule**: test pe template saved ho to dialog sirf date puchta hai; saved na ho tab hi template chunna padta hai, aur wahan chuna hua template test pe bhi save ho jaata hai. Template badalne par us test ka schedule bhi naye template pe aa jaata hai.
 - Test card kholne par JSON se hi analysis: subject-wise question count, chapters (chapter tap → uske topics), aur paper ka level (easy/medium/hard ka count + %).
 - Import do jagah se: Setup screen (template ke saath, capped) aur Available Tests (bina template — subjects file se derive hote hain). Available Tests par **Paste** button se AI ka banaya JSON seedha paste karke save hota hai.
 - AI ki common JSON galtiyan import/paste karte waqt auto-fix hoti hain: markdown fence aur aage-piche ka text, trailing comma, single-backslash LaTeX (`\sqrt`, `\frac`), string ke andar real newline, `subjects` array shape, `options` object, aur `answer` ke labels (`Option B`, `(b)`, `B)`).
@@ -36,7 +39,8 @@ Open http://127.0.0.1:8080 on phone browser. Sirf `flask` chahiye (`pip install 
 - Answers/marks/visited/time-spent server pe save; time usi question me jaata hai jis par kharch hua (navigate, lock-expiry aur submit par flush hota hai). In-progress view me `answer`/`solution` client ko bheje hi nahi jaate.
 
 **Exam UI**
-- Question palette (bottom sheet): subject-wise grid, answered / not answered / marked / not visited / locked states, jump-to-question.
+- Timer bar: `⏱ time | <chal raha subject> ▾` + `⊞ Palette`. Subject ke naam pe tap karo to saare subjects ki list khulti hai (har subject ke aage `answered/total` — jaise `Maths · 2/43` matlab 43 me se 2 answered); dusra subject chunte hi uske **pehle question** pe jump ho jaata hai. Locked subject 🔒 ke saath disabled. Subject-timer mode me naam pehle se timer ke saath dikhta hai, wahan dropdown nahi hai.
+- Question palette (bottom sheet): subject-wise grid, answered / not answered / marked / not visited / locked states, jump-to-question. Upar ke subject chips aur neeche ka "Band karo" button hata diye (band karne ke liye × ya bahar tap). **Submit button ab sirf palette ke andar, sabse neeche** hai (top bar se hata diya); dabane par palette band hoke Submit confirm khulta hai.
 - Prev / Next / Mark / Clear / Submit confirmation (answered-marked-blank counts ke saath).
 - SVG diagrams sanitize hoke render hote hain; LaTeX MathJax (local vendor, CDN nahi).
 
@@ -66,6 +70,7 @@ Open http://127.0.0.1:8080 on phone browser. Sirf `flask` chahiye (`pip install 
       scoring.py            # subject-wise scoring + per-question rows (pure)
       routes_tests.py       # /api/tests ...
       routes_templates.py   # /api/templates ...
+      routes_testtpl.py     # /api/test-template ... (test ke saath saved template)
       routes_settings.py    # /api/settings ...
       routes_attempt.py     # /api/attempts ... (answer/mark/visit/submit, 409 handling)
       routes_prompt.py      # /api/prompt/<key> (view/edit/reset)
@@ -116,6 +121,8 @@ Rules: `q` non-empty, 2–6 string options, `answer` ek capital letter options k
 | GET | `/api/tests/<id>/validate?template=<tid>` | `{errors, warnings}` |
 | POST | `/api/tests/import` | multipart `files[]`, optional `template_id`, `name` |
 | POST | `/api/tests/paste` | `{json, name?}` — pasted JSON text se test save (201) |
+| GET | `/api/test-template` | `{items: {test_id: template_id}}` (delete ho chuke test/template ki entries saaf) |
+| PUT/DELETE | `/api/test-template/<test_id>` | `PUT {template_id}` — test ke saath template save; `DELETE` hatata hai |
 | GET | `/api/templates` | summaries |
 | GET/PUT/DELETE | `/api/templates/<id>` | `PUT` me `id="new"` = create |
 | GET/PUT | `/api/settings` | `{theme}` |
@@ -131,11 +138,20 @@ Rules: `q` non-empty, 2–6 string options, `answer` ek capital letter options k
 
 Mutation errors: `409` submitted / time_up / subject_locked / question_locked (locked response me `next` aur fresh `view` bhi hota hai), `422` validation.
 
+## Recent changes (changelog)
+
+- **Test ke saath template**: nayi file `core/routes_testtpl.py`, data `data/test_templates.json` (`{test_id: template_id}`, schedule se alag). Test delete/merge ya template delete par entry auto-clean. Schedule dialog me template tabhi puchta hai jab test pe saved na ho; wahan chuna template test pe bhi save hota hai; template badalne par us test ka schedule bhi naye template pe aata hai.
+- **Available Tests UI**: 📄 icon hata, left me chhota gol ▶ Start (sirf template-saved tests pe), 📋 Template / Change Template button, card me template details.
+- **Start New Test**: "Choose Test" list me lambe naam wali rows ka text overlap hota tha (rows shrink ho rahi thi) — ab rows apni poori height rakhti hain aur list scroll karti hai.
+- **Running test**: timer ke daayein chal raha subject + tap par subject dropdown (pehle question pe jump); palette se subject chips aur "Band karo" hata; Submit palette ke andar sabse neeche.
+- `setup.js` ka Test Details card alag function `setup.detailsCard()` hai (Start New Test aur Available Tests dono use karte hain).
+- Tests: 132 (8 naye `tests/test_test_template.py` me). Cache-bust abhi `?v=47`.
+
 ## Tests
 
     python -m unittest discover -s tests
 
-124 tests (1.1 s) — importer (incl. AI output repair), validator, test analysis + paste route, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), time attribution, retry, lock flow, skip-empty. Tests temp data dir use karte hain, real `data/` touch nahi hota.
+132 tests (1.1 s) — importer (incl. AI output repair), validator, test analysis + paste route, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), time attribution, retry, lock flow, skip-empty. Tests temp data dir use karte hain, real `data/` touch nahi hota.
 
 ## Hard rules
 

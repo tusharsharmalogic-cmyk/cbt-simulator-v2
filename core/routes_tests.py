@@ -44,6 +44,11 @@ def delete_test(test_id):
         remove_entry(test_id)
     except Exception:
         pass
+    try:
+        from core.routes_testtpl import remove_entry as remove_tpl
+        remove_tpl(test_id)
+    except Exception:
+        pass
     return jsonify(ok=True)
 
 @bp.post("/merge")
@@ -85,6 +90,12 @@ def merge_tests():
                 p.unlink()
             except OSError:
                 pass
+    try:
+        from core.routes_testtpl import remove_entry as remove_tpl
+        for tid in test_ids:
+            remove_tpl(tid)
+    except Exception:
+        pass
 
     return jsonify({"ok": True, "test_id": new_id, "test_name": saved_name})
 

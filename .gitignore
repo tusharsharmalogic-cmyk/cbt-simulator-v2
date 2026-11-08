@@ -11,3 +11,5 @@ data/AI_PROMPT_GENERATE.md
 .DS_Store
 *.log
 data/tests/*.json
+
+data/test_templates.json

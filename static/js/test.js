@@ -99,6 +99,38 @@ const testScreen = (() => {
       timerLeft.append(el('span', 'subj-timer-label', ' | ' + timing.subject.name + ' '));
       timerLeft.append(el('span', 'subj-timer', formatTime(timing.subject.remaining_seconds)));
     }
+    // Chal raha subject: timer ke daayein (subject-timer mode me naam pehle se dikhta hai)
+    if (!(isSubjectMode && timing.subject)) {
+      timerLeft.append(el('span', 'subj-timer-label', ' | '));
+      const subjBtn = el('button', 'cur-subj', a.current.subject + ' ▾');
+      subjBtn.type = 'button';
+      subjBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const old = timerBar.querySelector('.subj-menu');
+        if (old) { old.remove(); return; }
+        const menu = el('div', 'subj-menu');
+        subjectsOf(a).forEach(sn => {
+          const lk = locked.has(sn);
+          const list = (a.responses && a.responses[sn]) || [];
+          const c = palette.counts(list);
+          const item = el('button', 'subj-menu-item' + (sn === a.current.subject ? ' active' : ''),
+            `${sn}${lk ? ' 🔒' : ''}  ·  ${c.answered}/${list.length}`);
+          item.type = 'button';
+          item.disabled = lk;
+          item.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            menu.remove();
+            // Dusra subject chuna to uske pehle question pe jump
+            if (sn !== a.current.subject) opts.onSubjectTab && opts.onSubjectTab(sn);
+          });
+          menu.append(item);
+        });
+        timerBar.append(menu);
+        const closeMenu = () => { menu.remove(); document.removeEventListener('click', closeMenu); };
+        document.addEventListener('click', closeMenu);
+      });
+      timerLeft.append(subjBtn);
+    }
     // Per-subject / per-Q lock timer (client-side from timestamps)
     const curSubj0 = a.current.subject;
     const curIdx0 = a.current.index;
@@ -119,14 +151,10 @@ const testScreen = (() => {
     palBtn.type = 'button';
     palBtn.addEventListener('click', () => opts.onOpenPalette && opts.onOpenPalette());
     rightSide.append(palBtn);
-    const submitBtn = el('button', 'btn small submit-btn', 'Submit');
-    submitBtn.type = 'button';
-    submitBtn.addEventListener('click', () => opts.onSubmit && opts.onSubmit());
-    rightSide.append(submitBtn);
     timerBar.append(rightSide);
     root.append(timerBar);
 
-    // Subject chips ab palette ke andar hain (palette.js).
+    // Submit button ab palette ke andar sabse neeche hai (palette.js).
 
     // Question
     const subj = a.current.subject;

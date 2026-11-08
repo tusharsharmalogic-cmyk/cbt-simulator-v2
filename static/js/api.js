@@ -39,8 +39,12 @@ const api = {
   testPool: () => api.get('/api/tests/pool'),
   schedule: () => api.get('/api/schedule'),
   setSchedule: (testId, date, template_id) => api.put(
-    '/api/schedule/' + encodeURIComponent(testId), { date, template_id }),
+    '/api/schedule/' + encodeURIComponent(testId), { date, template_id: template_id || null }),
   clearSchedule: (testId) => api.del('/api/schedule/' + encodeURIComponent(testId)),
+  testTemplates: () => api.get('/api/test-template'),
+  setTestTemplate: (testId, template_id) => api.put(
+    '/api/test-template/' + encodeURIComponent(testId), { template_id }),
+  clearTestTemplate: (testId) => api.del('/api/test-template/' + encodeURIComponent(testId)),
   customTest: (filters) => api.post('/api/tests/custom', filters),
   validateTest: (id, templateId) => api.get(
     `/api/tests/${encodeURIComponent(id)}/validate?template=${encodeURIComponent(templateId)}`),

@@ -26,9 +26,8 @@ const palette = (() => {
   }
 
   function render(attempt, opts) {
-    // opts: {onJump, onClose}
-    // Saare subjects ek saath, har subject ki apni heading. Upar subject chips
-    // (chip dabao -> palette usi subject ke section tak scroll karta hai).
+    // opts: {onJump, onClose, onSubmit}
+    // Saare subjects ek saath, har subject ki apni heading. Neeche Submit button.
     const subjects = Object.keys(attempt.questions || {});
 
     const sheet = el('div', 'sheet');
@@ -46,29 +45,12 @@ const palette = (() => {
     head.append(close);
     panel.append(head);
 
-    // Subject chips (palette ke andar, sabse upar)
-    const chips = el('div', 'subject-tabs pal-chips');
-    const sections = {};
-    subjects.forEach(subj => {
-      const lk = !!(attempt.locks && attempt.locks[subj] && attempt.locks[subj].subject_locked);
-      const cls = 'subj-tab' + (subj === attempt.current.subject ? ' active' : '') + (lk ? ' locked' : '');
-      const b = el('button', cls, subj + (lk ? ' 🔒' : ''));
-      b.type = 'button';
-      b.addEventListener('click', () => {
-        const sec = sections[subj];
-        if (sec) sec.scrollIntoView({ block: 'start', behavior: 'smooth' });
-      });
-      chips.append(b);
-    });
-    panel.append(chips);
-
     // Har subject: heading + grid
     const all = [];
     subjects.forEach(subj => {
       const list = (attempt.responses && attempt.responses[subj]) || [];
       all.push(...list);
       const sec = el('div', 'pal-section');
-      sections[subj] = sec;
       const c = counts(list);
       sec.append(el('h4', 'pal-subject', `${subj}  ·  ${c.answered}/${list.length}`));
 
@@ -114,11 +96,11 @@ const palette = (() => {
     });
     panel.append(legend);
 
-    // Close button
-    const closeBtn = el('button', 'btn wide', 'Band karo');
-    closeBtn.type = 'button';
-    closeBtn.addEventListener('click', () => opts.onClose && opts.onClose());
-    panel.append(closeBtn);
+    // Submit button (palette ke andar, sabse neeche)
+    const submitBtn = el('button', 'btn wide submit-btn pal-submit', 'Submit');
+    submitBtn.type = 'button';
+    submitBtn.addEventListener('click', () => opts.onSubmit && opts.onSubmit());
+    panel.append(submitBtn);
 
     sheet.append(panel);
     return sheet;

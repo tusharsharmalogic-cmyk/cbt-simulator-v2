@@ -70,8 +70,17 @@ def set_schedule(test_id):
     tpl = body.get("template_id")
     if not isinstance(date, str) or not _DATE_RE.match(date):
         return jsonify(error="Date (YYYY-MM-DD) chahiye"), 422
-    if not isinstance(tpl, str) or template_store.get_template(tpl) is None:
+    from core import routes_testtpl
+    if tpl is None or tpl == "":
+        # Test pe template pehle se saved ho to wahi use hoga (dobara nahi puchte)
+        tpl = routes_testtpl.get_template_id(test_id)
+        if tpl is None:
+            return jsonify(error="Is test ke liye template chuno"), 422
+    elif not isinstance(tpl, str) or template_store.get_template(tpl) is None:
         return jsonify(error="Valid template chuno"), 422
+    else:
+        # Schedule me naya template chuna to test pe bhi save, taaki dobara na puche
+        routes_testtpl.set_template_id(test_id, tpl)
     d = load_schedule()
     d[test_id] = {"date": date, "template_id": tpl}
     save_schedule(d)

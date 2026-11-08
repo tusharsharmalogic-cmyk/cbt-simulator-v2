@@ -619,9 +619,8 @@ function renderTest() {
     onSubjectTab: (subj) => {
       // subject tab pe jump karo -> visit call
       if (a.current.subject === subj) return;
-      const nextIdx = a.current.index;
-      a.current = { subject: subj, index: 0 };
-      sendVisit(subj, 0).then(() => { refreshAttempt(); });
+      // Naye subject ke pehle question pe jump (palette ke onJump jaisa)
+      sendVisit(subj, 0).then(r => { if (r.ok) refreshAttempt(); });
     },
   });
   app.replaceChildren(root);
@@ -714,6 +713,7 @@ function mountPalette() {
       sendVisit(subj, idx).then(r => { if (r.ok) refreshAttempt(); });
     },
     onClose: () => { paletteOpen = false; unmountPalette(); },
+    onSubmit: () => { paletteOpen = false; unmountPalette(); openSubmitConfirm(); },
   });
   document.body.append(paletteEl);
 }
@@ -1089,7 +1089,7 @@ async function showTemplatesList() {
 }
 
 // ========== Available tests (accordion) ==========
-async function showAvailableTests() {
+async function showAvailableTests(openId) {
   state.screen = 'available';
   show('Available Tests', el('p', 'muted', 'Load ho raha hai...'));
   let tests = [];
@@ -1098,6 +1098,10 @@ async function showAvailableTests() {
   let tplList = [];
   try { (await api.schedule()).items.forEach(x => { schedMap[x.test_id] = x; }); } catch {}
   try { tplList = (await api.templates()).filter(x => !x.error); } catch {}
+  let tplMap = {};       // test_id -> template_id (test ke saath saved template)
+  try { tplMap = (await api.testTemplates()).items || {}; } catch {}
+  const tplById = (id) => tplList.find(x => x.id === id) || null;
+  const assignedTpl = (testId) => tplById(tplMap[testId]);
 
   const wrap = el('div', 'available-screen');
 
@@ -1215,7 +1219,27 @@ async function showAvailableTests() {
     head.addEventListener('contextmenu', (e) => e.preventDefault());
     head.classList.add('tc-head-press');
 
-    head.append(el('span', 'tc-icon', '📄'));
+    const myTpl = assignedTpl(t.id);
+    // Start button: sirf us test pe jisme template save hai (left, chhota gol)
+    if (myTpl) {
+      const startBtn = el('button', 'tc-start', '▶');
+      startBtn.type = 'button';
+      startBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        startBtn.disabled = true;
+        try {
+          const a = await api.createAttempt(myTpl.id, [t.id]);
+          try { await api.clearSchedule(t.id); } catch {}
+          location.hash = `#/attempt/${a.id}`;
+        } catch (err) {
+          alert('Start fail: ' + err.message);
+          startBtn.disabled = false;
+        }
+      });
+      startBtn.title = 'Start';
+      startBtn.setAttribute('aria-label', 'Start test');
+      head.append(startBtn);
+    }
     const main = el('div', 'tc-main');
     main.append(el('h3', '', t.name));
     const total = Object.values(t.subjects || {}).reduce((a, n) => a + n, 0);
@@ -1232,6 +1256,7 @@ async function showAvailableTests() {
       const overdue = sc.date < todayStr;
       meta.append(el('span', overdue ? 'sched-chip overdue' : 'sched-chip', (overdue ? '⚠ Overdue: ' : '📅 Scheduled: ') + sc.date));
     }
+    if (myTpl) meta.append(el('span', 'tpl-chip', '📋 ' + myTpl.name));
     main.append(meta);
     head.append(main);
     const toggle = el('span', 'tc-toggle', '▾');
@@ -1244,7 +1269,19 @@ async function showAvailableTests() {
     });
     card.append(head);
 
+    if (openId && t.id === openId) card.classList.add('open');
+
     const body = el('div', 'test-card-body');
+    // Template save ho to Start New Test jaisi details (kitne Q chahiye vs test me kitne)
+    if (myTpl) {
+      const tbox = el('div', 'tpl-box');
+      tbox.append(el('div', 'tc-section-title', '📋 Template: ' + myTpl.name));
+      const sState = { templates: tplList, tests: [t], templateId: myTpl.id, testIds: [t.id] };
+      const det = setup.computeDetails(sState);
+      if (det.length) tbox.append(setup.detailsCard(sState, det));
+      else tbox.append(el('div', 'muted small', 'Template ke subjects is test ke subjects se match nahi karte.'));
+      body.append(tbox);
+    }
     const a = t.analysis;
     if (a) {
       const summary = el('div', 'tc-summary');
@@ -1286,15 +1323,77 @@ async function showAvailableTests() {
     const schedBtn = el('button', 'btn ghost', '📅 Schedule');
     schedBtn.type = 'button';
     schedBtn.addEventListener('click', () => openScheduleDialog(t));
-    actions.append(viewBtn, schedBtn, delBtn);
+    const tplBtn = el('button', 'btn ghost', myTpl ? '📋 Change Template' : '📋 Template');
+    tplBtn.type = 'button';
+    tplBtn.addEventListener('click', () => openTemplateDialog(t));
+    actions.append(viewBtn, tplBtn, schedBtn, delBtn);
     body.append(actions);
     card.append(body);
     return card;
   }
 
-  // Schedule dialog: sirf date + template (time nahi)
+  // Template dialog: is test ke liye template chuno aur save karo
+  function openTemplateDialog(t) {
+    const cur = assignedTpl(t.id);
+    const sheet = el('div', 'sheet');
+    sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
+    const panel = el('div', 'sheet-panel');
+    panel.append(el('div', 'sheet-handle'));
+    panel.append(el('h3', '', 'Template: ' + t.name));
+    panel.append(el('div', 'muted small', 'Is test ke liye template chuno. Save ke baad test card me details aur Start button dikhega.'));
+
+    const tplSel = document.createElement('select');
+    tplSel.className = 'input';
+    if (!tplList.length) {
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = '(koi template nahi — pehle banao)';
+      tplSel.append(o); tplSel.disabled = true;
+    } else {
+      tplList.forEach(x => {
+        const o = document.createElement('option');
+        o.value = x.id;
+        o.textContent = x.name + ` (${x.total_minutes} min)`;
+        if (cur && cur.id === x.id) o.selected = true;
+        tplSel.append(o);
+      });
+    }
+    panel.append(el('span', 'field-label', '📋 Template'), tplSel);
+
+    const row = el('div', 'actions-row');
+    const cancel = el('button', 'btn ghost', 'Cancel');
+    cancel.type = 'button';
+    cancel.addEventListener('click', () => sheet.remove());
+    row.append(cancel);
+    if (cur) {
+      const clr = el('button', 'btn ghost danger', 'Remove');
+      clr.type = 'button';
+      clr.addEventListener('click', async () => {
+        try { await api.clearTestTemplate(t.id); sheet.remove(); showAvailableTests(t.id); }
+        catch (e) { alert('Remove fail: ' + e.message); }
+      });
+      row.append(clr);
+    }
+    const save = el('button', 'btn', 'Save');
+    save.type = 'button';
+    save.addEventListener('click', async () => {
+      if (!tplSel.value) { alert('Template chuno'); return; }
+      save.disabled = true;
+      try {
+        await api.setTestTemplate(t.id, tplSel.value);
+        sheet.remove();
+        showAvailableTests(t.id);
+      } catch (e) { alert('Save fail: ' + e.message); save.disabled = false; }
+    });
+    row.append(save);
+    panel.append(row);
+    sheet.append(panel);
+    document.body.append(sheet);
+  }
+
+  // Schedule dialog: date (+ template sirf tab jab test pe template saved na ho)
   function openScheduleDialog(t) {
     const cur = schedMap[t.id] || null;
+    const saved = assignedTpl(t.id);
     const sheet = el('div', 'sheet');
     sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.remove(); });
     const panel = el('div', 'sheet-panel');
@@ -1323,7 +1422,12 @@ async function showAvailableTests() {
         tplSel.append(o);
       });
     }
-    panel.append(el('span', 'field-label', '📋 Template'), tplSel);
+    if (saved) {
+      // Template pehle se saved hai — dobara nahi puchte
+      panel.append(el('div', 'muted small', '📋 Template: ' + saved.name + ' (saved)'));
+    } else {
+      panel.append(el('span', 'field-label', '📋 Template'), tplSel);
+    }
 
     const row = el('div', 'actions-row');
     const cancel = el('button', 'btn ghost', 'Cancel');
@@ -1343,10 +1447,10 @@ async function showAvailableTests() {
     save.type = 'button';
     save.addEventListener('click', async () => {
       if (!dateInp.value) { alert('Date chuno'); return; }
-      if (!tplSel.value) { alert('Template chuno'); return; }
+      if (!saved && !tplSel.value) { alert('Template chuno'); return; }
       save.disabled = true;
       try {
-        await api.setSchedule(t.id, dateInp.value, tplSel.value);
+        await api.setSchedule(t.id, dateInp.value, saved ? null : tplSel.value);
         sheet.remove();
         showAvailableTests();
       } catch (e) { alert('Save fail: ' + e.message); save.disabled = false; }

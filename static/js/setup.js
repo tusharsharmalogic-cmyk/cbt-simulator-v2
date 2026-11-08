@@ -46,6 +46,43 @@ const setup = (() => {
     return rows;
   }
 
+  // Test Details card (Start New Test + Available Tests dono me use hota hai)
+  function detailsCard(s, details) {
+    details = details || computeDetails(s);
+    const detCard = el('div', 'card');
+    detCard.append(el('h3', '', '📊 Test Details'));
+    // Auto time preview: template auto_time ON ho aur test me kam Q hon
+    const tplSel0 = s.templates.find(x => x.id === s.templateId);
+    if (tplSel0 && tplSel0.auto_time === true) {
+      const tplQ = (tplSel0.subjects || []).reduce((a, x) => a + (Number(x.questions) || 0), 0);
+      const realQ = details.reduce((a, d) => a + Math.min(d.have, d.need), 0);
+      const base = Number(tplSel0.total_minutes) || 0;
+      if (tplQ > 0 && realQ > 0 && realQ < tplQ) {
+        const mins = Math.max(1, Math.round(base * realQ / tplQ));
+        detCard.append(el('div', 'muted', `⏱ Time: ${mins} min (auto, ${base} min me se)`));
+      } else {
+        detCard.append(el('div', 'muted', `⏱ Time: ${base} min`));
+      }
+    }
+    details.forEach(d => {
+      const row = el('div', 'td-row');
+      const nameEl = el('div', 'td-name', d.name);
+      const barWrap = el('div', 'td-bar');
+      const pct = d.need > 0 ? Math.min(100, Math.round(100 * d.have / d.need)) : 0;
+      const fill = el('div', 'td-fill' + (d.have >= d.need ? ' full' : ''));
+      fill.style.width = pct + '%';
+      barWrap.append(fill);
+      const count = el('div', 'td-count', `${d.have} / ${d.need}`);
+      row.append(nameEl, barWrap, count);
+      detCard.append(row);
+      const mk = el('div', 'td-marks', `Marking: +${d.marks ?? '?'} / -${d.negative ?? '?'}`);
+      mk.style.marginLeft = '90px';
+      mk.style.marginBottom = '8px';
+      detCard.append(mk);
+    });
+    return detCard;
+  }
+
   function render(s, opts) {
     // opts: {
     //   onTemplateChange(id), onTestChange(id), onNameChange(name),
@@ -131,40 +168,7 @@ const setup = (() => {
 
     // 4. Test Details (progress bars) — only when test(s) selected (counts summed)
     const details = s.testIds.length ? computeDetails(s) : [];
-    if (details.length) {
-      const detCard = el('div', 'card');
-      detCard.append(el('h3', '', '📊 Test Details'));
-      // Auto time preview: template auto_time ON ho aur test me kam Q hon
-      const tplSel0 = s.templates.find(x => x.id === s.templateId);
-      if (tplSel0 && tplSel0.auto_time === true) {
-        const tplQ = (tplSel0.subjects || []).reduce((a, x) => a + (Number(x.questions) || 0), 0);
-        const realQ = details.reduce((a, d) => a + Math.min(d.have, d.need), 0);
-        const base = Number(tplSel0.total_minutes) || 0;
-        if (tplQ > 0 && realQ > 0 && realQ < tplQ) {
-          const mins = Math.max(1, Math.round(base * realQ / tplQ));
-          detCard.append(el('div', 'muted', `⏱ Time: ${mins} min (auto, ${base} min me se)`));
-        } else {
-          detCard.append(el('div', 'muted', `⏱ Time: ${base} min`));
-        }
-      }
-      details.forEach(d => {
-        const row = el('div', 'td-row');
-        const nameEl = el('div', 'td-name', d.name);
-        const barWrap = el('div', 'td-bar');
-        const pct = d.need > 0 ? Math.min(100, Math.round(100 * d.have / d.need)) : 0;
-        const fill = el('div', 'td-fill' + (d.have >= d.need ? ' full' : ''));
-        fill.style.width = pct + '%';
-        barWrap.append(fill);
-        const count = el('div', 'td-count', `${d.have} / ${d.need}`);
-        row.append(nameEl, barWrap, count);
-        detCard.append(row);
-        const mk = el('div', 'td-marks', `Marking: +${d.marks ?? '?'} / -${d.negative ?? '?'}`);
-        mk.style.marginLeft = '90px';
-        mk.style.marginBottom = '8px';
-        detCard.append(mk);
-      });
-      root.append(detCard);
-    }
+    if (details.length) root.append(detailsCard(s, details));
 
     // 5. Import JSON section
     const impToggle = el('button', 'btn ghost wide', s.showImport ? '✕ Close import' : '⬆ Import Test from JSON');
@@ -249,5 +253,5 @@ const setup = (() => {
     return (n / (1024 * 1024)).toFixed(1) + ' MB';
   }
 
-  return { initialState, render, computeDetails };
+  return { initialState, render, computeDetails, detailsCard };
 })();

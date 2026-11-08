@@ -35,5 +35,10 @@ def put_template(tid):
 @bp.delete("/<tid>")
 def delete_template(tid):
     if template_store.delete_template(tid):
+        try:
+            from core.routes_testtpl import remove_template
+            remove_template(tid)
+        except Exception:
+            pass
         return jsonify(ok=True)
     return jsonify(error="Template nahi mila"), 404
