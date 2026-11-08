@@ -128,13 +128,23 @@ const resultScreen = (() => {
   }
 
   // ---------- Tab 2: Analysis ----------
-  function emptyStat() { return { total: 0, correct: 0, wrong: 0, blank: 0 }; }
+  const MIN_SAMPLE = 3;      // fewer questions than this -> "Low data"
+  const STRONG_AT = 0.75;    // correct / total
+  const WEAK_BELOW = 0.4;
+  const SORTS = [['weak', 'Weakest'], ['lost', 'Most marks lost'], ['time', 'Most time']];
 
-  function addRow(st, status) {
+  function emptyStat() { return { total: 0, correct: 0, wrong: 0, blank: 0, time: 0, lost: 0 }; }
+
+  // time / marks / neg are optional (difficulty rows do not need them).
+  // lost = marks not earned: blank -> marks, wrong -> marks + negative.
+  function addRow(st, status, time, marks, neg) {
+    const m = Number(marks) || 0;
+    const n = Number(neg) || 0;
     st.total++;
+    st.time += Number(time) || 0;
     if (status === 'correct') st.correct++;
-    else if (status === 'wrong') st.wrong++;
-    else st.blank++;
+    else if (status === 'wrong') { st.wrong++; st.lost += m + n; }
+    else { st.blank++; st.lost += m; }
   }
 
   function labelOf(v) {
@@ -170,35 +180,88 @@ const resultScreen = (() => {
     return `✓ ${st.correct} • ✗ ${st.wrong} • — ${st.blank} • Acc ${acc === null ? '—' : acc + '%'}`;
   }
 
-  function renderAnalysis(a, r) {
-    const pane = el('div', 'stack result-pane');
+  function strengthOf(st) {
+    if (st.total < MIN_SAMPLE) return { key: 'low', label: 'Low data' };
+    const p = st.correct / st.total;
+    if (p >= STRONG_AT) return { key: 'strong', label: 'Strong' };
+    if (p >= WEAK_BELOW) return { key: 'avg', label: 'Average' };
+    return { key: 'weak', label: 'Weak' };
+  }
 
-    // Rows ko (subject, question) ke saath jodo
-    const subjects = (r.subjects || []).map(s => {
-      const qs = (a.questions && a.questions[s.name]) || [];
-      return { name: s.name, items: (s.rows || []).map((row, i) => ({ row, q: qs[i] || {} })) };
-    });
+  function round2(x) { return Math.round(x * 100) / 100; }
 
-    // ---- Difficulty (overall) ----
+  // Comparator for {name, st} entries. "Weakest" keeps Low-data entries at the bottom.
+  function compareBy(mode) {
+    return (x, y) => {
+      if (mode === 'lost') return y.st.lost - x.st.lost || y.st.total - x.st.total;
+      if (mode === 'time') return y.st.time - x.st.time || y.st.total - x.st.total;
+      const lx = x.st.total < MIN_SAMPLE ? 1 : 0;
+      const ly = y.st.total < MIN_SAMPLE ? 1 : 0;
+      return lx - ly
+        || (x.st.correct / x.st.total) - (y.st.correct / y.st.total)
+        || y.st.total - x.st.total;
+    };
+  }
+
+  // Collapsible section (native <details>). Open/closed state is kept in
+  // openState so it survives subject switches.
+  function section(title, key, openState, build) {
+    const d = document.createElement('details');
+    d.className = 'an-section';
+    d.open = openState[key] !== false;
+    d.addEventListener('toggle', () => { openState[key] = d.open; });
+    d.append(el('summary', 'an-summary', title));
+    const body = el('div', 'an-section-body');
+    build(body);
+    d.append(body);
+    return d;
+  }
+
+  function buildDifficulty(body, subjects) {
     const diffStats = {};
     DIFFS.forEach(d => { diffStats[d] = emptyStat(); });
     subjects.forEach(s => s.items.forEach(it => addRow(diffStats[diffOf(it.q)], it.row.status)));
 
-    pane.append(el('h2', 'section-title', 'Difficulty wise'));
-    const diffCard = el('div', 'card');
-    let anyDiff = false;
+    const card = el('div', 'card');
+    let any = false;
     DIFFS.forEach(d => {
       const st = diffStats[d];
       if (!st.total) return;
-      anyDiff = true;
-      diffCard.append(analysisRow(`${DIFF_LABEL[d]} (${st.total})`, st));
+      any = true;
+      card.append(analysisRow(`${DIFF_LABEL[d]} (${st.total})`, st));
     });
-    if (!anyDiff) diffCard.append(el('p', 'muted center', 'Koi question nahi.'));
-    pane.append(diffCard);
+    if (!any) card.append(el('p', 'muted center', 'No questions.'));
+    body.append(card);
+  }
 
-    // ---- Chapter / topic (subject ke andar) ----
-    pane.append(el('h2', 'section-title', 'Chapter wise'));
-    pane.append(el('div', 'muted small', 'Kamzor chapter pehle. Chapter pe tap karo to topics dikhenge.'));
+  // Chapter / topic row: strength badge + marks lost + average time per question.
+  function detailRow(label, st) {
+    const s = strengthOf(st);
+    const avg = st.total ? st.time / st.total : 0;
+    return analysisRow(label, st, {
+      badge: el('span', 'an-badge ' + s.key, s.label),
+      extra: `Marks lost ${round2(st.lost)} • Avg time/Q ${formatDuration(avg)}`,
+    });
+  }
+
+  function buildChapters(body, subjects, sortMode, onSort) {
+    const sortBar = el('div', 'filter-bar an-sort');
+    SORTS.forEach(([key, label]) => {
+      const b = el('button', 'filter-btn' + (sortMode === key ? ' active' : ''), label);
+      b.type = 'button';
+      b.addEventListener('click', () => onSort(key));
+      sortBar.append(b);
+    });
+    body.append(el('div', 'muted small', 'Sort by'), sortBar);
+
+    const hi = Math.round(STRONG_AT * 100);
+    const lo = Math.round(WEAK_BELOW * 100);
+    body.append(el('div', 'muted small',
+      `Strong: ${hi}%+ correct • Average: ${lo}–${hi - 1}% • Weak: below ${lo}% • ` +
+      `Low data: under ${MIN_SAMPLE} questions. Marks lost = full marks minus marks scored. ` +
+      'Tap a chapter to see its topics.'));
+
+    const cmp = compareBy(sortMode);
     subjects.forEach(s => {
       const chapters = new Map();
       s.items.forEach(it => {
@@ -206,25 +269,21 @@ const resultScreen = (() => {
         const tp = labelOf(it.q.topic);
         let c = chapters.get(ch);
         if (!c) { c = { name: ch, st: emptyStat(), topics: new Map() }; chapters.set(ch, c); }
-        addRow(c.st, it.row.status);
+        addRow(c.st, it.row.status, it.row.time_spent, s.marks, s.neg);
         let t = c.topics.get(tp);
         if (!t) { t = { name: tp, st: emptyStat() }; c.topics.set(tp, t); }
-        addRow(t.st, it.row.status);
+        addRow(t.st, it.row.status, it.row.time_spent, s.marks, s.neg);
       });
       const card = el('div', 'card');
       card.append(el('h3', '', s.name));
-      // sort: correct/total ascending (kamzor pehle)
-      const list = [...chapters.values()].sort((x, y) =>
-        (x.st.correct / x.st.total) - (y.st.correct / y.st.total) || y.st.total - x.st.total);
-      list.forEach(c => {
+      [...chapters.values()].sort(cmp).forEach(c => {
         const wrap = el('div', 'an-chapter');
-        const head = analysisRow(`${c.name} (${c.st.total})`, c.st);
+        const head = detailRow(`${c.name} (${c.st.total})`, c.st);
         head.classList.add('tappable');
         const sub = el('div', 'an-topics');
         sub.hidden = true;
-        [...c.topics.values()]
-          .sort((x, y) => (x.st.correct / x.st.total) - (y.st.correct / y.st.total))
-          .forEach(t => sub.append(analysisRow(`${t.name} (${t.st.total})`, t.st)));
+        [...c.topics.values()].sort(cmp)
+          .forEach(t => sub.append(detailRow(`${t.name} (${t.st.total})`, t.st)));
         head.addEventListener('click', () => {
           sub.hidden = !sub.hidden;
           head.classList.toggle('open', !sub.hidden);
@@ -232,17 +291,66 @@ const resultScreen = (() => {
         wrap.append(head, sub);
         card.append(wrap);
       });
-      pane.append(card);
+      body.append(card);
+    });
+  }
+
+  function renderAnalysis(a, r) {
+    const pane = el('div', 'stack result-pane');
+
+    // Pair every result row with its question snapshot (+ marking scheme)
+    const all = (r.subjects || []).map(s => {
+      const qs = (a.questions && a.questions[s.name]) || [];
+      return {
+        name: s.name,
+        marks: s.marks,
+        neg: s.negative,
+        items: (s.rows || []).map((row, i) => ({ row, q: qs[i] || {} })),
+      };
     });
 
+    const view = { subject: 'all', open: {}, sort: 'weak' };
+    const chips = el('div', 'filter-bar an-chips');
+    const content = el('div', 'stack an-content');
+
+    const draw = () => {
+      // Subject chips (only useful when there is more than one subject)
+      chips.replaceChildren();
+      if (all.length > 1) {
+        const mk = (label, key) => {
+          const b = el('button', 'filter-btn' + (view.subject === key ? ' active' : ''), label);
+          b.type = 'button';
+          b.addEventListener('click', () => { view.subject = key; draw(); });
+          return b;
+        };
+        chips.append(mk('All', 'all'));
+        all.forEach(s => chips.append(mk(s.name, s.name)));
+      }
+      chips.hidden = all.length < 2;
+
+      const subjects = view.subject === 'all' ? all : all.filter(s => s.name === view.subject);
+      content.replaceChildren(
+        section('Difficulty', 'diff', view.open, body => buildDifficulty(body, subjects)),
+        section('Chapter wise', 'chap', view.open,
+          body => buildChapters(body, subjects, view.sort, key => { view.sort = key; draw(); })),
+      );
+    };
+
+    draw();
+    pane.append(chips, content);
     return pane;
   }
 
-  function analysisRow(label, st) {
+  // opts (optional): {badge: Node, extra: string}
+  function analysisRow(label, st, opts) {
     const row = el('div', 'an-row');
-    row.append(el('div', 'an-label', label));
+    const top = el('div', 'an-top');
+    top.append(el('div', 'an-label', label));
+    if (opts && opts.badge) top.append(opts.badge);
+    row.append(top);
     row.append(statBar(st));
     row.append(el('div', 'muted small', statLine(st)));
+    if (opts && opts.extra) row.append(el('div', 'muted small', opts.extra));
     return row;
   }
 

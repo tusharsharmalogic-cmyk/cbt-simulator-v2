@@ -145,7 +145,7 @@ Mutation errors: `409` submitted / time_up / subject_locked / question_locked (l
 - **Start New Test**: "Choose Test" list me lambe naam wali rows ka text overlap hota tha (rows shrink ho rahi thi) — ab rows apni poori height rakhti hain aur list scroll karti hai.
 - **Running test**: timer ke daayein chal raha subject + tap par subject dropdown (pehle question pe jump); palette se subject chips aur "Band karo" hata; Submit palette ke andar sabse neeche.
 - `setup.js` ka Test Details card alag function `setup.detailsCard()` hai (Start New Test aur Available Tests dono use karte hain).
-- Tests: 132 (8 naye `tests/test_test_template.py` me). Cache-bust abhi `?v=54`.
+- Tests: 132 (8 naye `tests/test_test_template.py` me). Cache-bust abhi `?v=56`.
 
 ## Tests
 
