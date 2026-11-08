@@ -64,10 +64,8 @@ function renderQuestion(q, no, opts = {}) {
       const letter = String.fromCharCode(65 + i);
       if (letter === opts.answer) {
         li.classList.add('opt-correct');
-        li.append(el('span', 'opt-mark ok', '✓'));
       } else if (letter === opts.choice) {
         li.classList.add('opt-wrong');
-        li.append(el('span', 'opt-mark bad', '✗'));
       }
     }
     if (opts.onSelect) {
