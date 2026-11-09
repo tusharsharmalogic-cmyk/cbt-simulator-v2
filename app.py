@@ -11,6 +11,7 @@ from flask import Flask, jsonify, render_template
 
 import config
 from core.routes_attempt import bp as attempts_bp
+from core.routes_progress import bp as progress_bp
 from core.routes_prompt import bp as prompt_bp
 from core.routes_schedule import bp as schedule_bp
 from core.routes_settings import bp as settings_bp
@@ -32,6 +33,7 @@ def create_app():
     app.register_blueprint(templates_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(attempts_bp)
+    app.register_blueprint(progress_bp)
     app.register_blueprint(prompt_bp)
     app.register_blueprint(schedule_bp)
     app.register_blueprint(testtpl_bp)

@@ -81,6 +81,7 @@ const api = {
   deleteTemplate: (id) => api.del('/api/templates/' + encodeURIComponent(id)),
 
   attempts: () => api.get('/api/attempts'),
+  progress: () => api.get('/api/progress'),
   attempt: (id) => api.get('/api/attempts/' + encodeURIComponent(id)),
   createAttempt: (template_id, test_ids) => api.post('/api/attempts', {
     template_id,

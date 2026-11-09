@@ -130,6 +130,7 @@ async function showHome() {
     { icon: '▶', label: 'Start New Test', primary: true, hash: '#/setup' },
     { icon: '📋', label: 'Available Test', hash: '#/available' },
     { icon: '✅', label: 'Completed Test', hash: '#/completed' },
+    { icon: '📈', label: 'Progress', hash: '#/progress' },
     { icon: '📄', label: 'Subject Templates', hash: '#/templates' },
     { icon: '⚙', label: 'Setting', hash: '#/settings' },
   ];
@@ -1676,6 +1677,17 @@ async function showCompletedTests() {
   backBtn.hidden = false;
 }
 
+// ========== Progress ==========
+async function showProgress() {
+  state.screen = 'progress';
+  show('Progress', el('p', 'muted', 'Load ho raha hai...'));
+  let data = null;
+  try { data = await api.progress(); }
+  catch (e) { show('Progress', el('p', 'error', 'Progress load nahi hua: ' + e.message)); backBtn.hidden = false; return; }
+  show('Progress', progressScreen.render(data));
+  backBtn.hidden = false;
+}
+
 // ========== Settings ==========
 async function showSettings() {
   state.screen = 'settings';
@@ -1795,7 +1807,27 @@ async function showPrompt(key) {
   backBtn.hidden = false;
 }
 
+// Navigation memory (memory only, no browser storage): remembers the screen the
+// user came from, so Back on the result screen returns there (Completed Test or
+// Progress) instead of always jumping to the main menu.
+const navMem = { cur: null, prev: null };
+const RESULT_ORIGINS = ['#/completed', '#/progress'];
+
+function trackNav(mem, hash) {
+  if (hash !== mem.cur) { mem.prev = mem.cur; mem.cur = hash; }
+}
+
+// Where the top Back button goes. After finishing a test or a retry the previous
+// hash is the test itself, which is not a place to return to, so that falls back to home.
+function backTarget(screen, prevHash) {
+  if (screen === 'prompt') return '#/settings';
+  if (screen === 'result' && RESULT_ORIGINS.includes(prevHash)) return prevHash;
+  return '#/home';
+}
+// END navigation memory
+
 async function route() {
+  trackNav(navMem, location.hash || '#/home');
   // leaving test screen → flush
   if (state.screen === 'test' && !location.hash.startsWith('#/attempt/')) {
     stopTicker(); stopSync();
@@ -1816,13 +1848,14 @@ async function route() {
   if (parts[0] === 'setup') return showSetup();
   if (parts[0] === 'available') return showAvailableTests();
   if (parts[0] === 'completed') return showCompletedTests();
+  if (parts[0] === 'progress') return showProgress();
   if (parts[0] === 'settings') return showSettings();
   if (parts[0] === 'prompt') return showPrompt(parts[1]);
   if (parts[0] === 'attempt' && parts[1]) return showAttempt(parts[1]);
   return showHome();
 }
 
-backBtn.addEventListener('click', () => { location.hash = state.screen === 'prompt' ? '#/settings' : '#/home'; });
+backBtn.addEventListener('click', () => { location.hash = backTarget(state.screen, navMem.prev); });
 if (themeBtn) themeBtn.addEventListener('click', cycleTheme);
 window.addEventListener('hashchange', route);
 

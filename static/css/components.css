@@ -1227,3 +1227,35 @@ mjx-container[display="true"] {
 .practice-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 6px 0; }
 .practice-wrap .btn { min-height: 34px; padding: 0 12px; font-size: 13px; }
 .fa-item .practice-wrap { margin: 2px 0 0; }
+
+/* Progress screen */
+.progress-screen { gap: 10px; }
+.pg-s0 { --c: #4a7dff; } .pg-s1 { --c: #8e44ad; } .pg-s2 { --c: #00897b; }
+.pg-s3 { --c: #ef6c00; } .pg-s4 { --c: #d81b60; } .pg-s5 { --c: #607d8b; }
+.pg-easy { --c: #2e7d32; } .pg-medium { --c: #d17b00; } .pg-hard { --c: #c62828; }
+.pg-chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.pg-grid { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 3; }
+.pg-tick { fill: var(--muted); font-size: 9px; }
+.pg-line { fill: none; stroke: var(--c); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.pg-dot { fill: var(--c); stroke: var(--surface, #fff); stroke-width: 1.5; cursor: pointer; }
+.pg-lv { font-size: 9px; font-weight: 700; fill: var(--muted); }
+.pg-lv.lv-easy { fill: #2e7d32; }
+.pg-lv.lv-medium { fill: #d17b00; }
+.pg-lv.lv-hard { fill: #c62828; }
+.pg-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 12px; }
+.pg-leg { display: inline-flex; align-items: center; gap: 5px; }
+.pg-key { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+.an-badge.lv-easy { color: #2e7d32; border-color: #2e7d32; background: rgba(46, 125, 50, 0.12); }
+.an-badge.lv-medium { color: #d17b00; border-color: #d17b00; background: rgba(245, 166, 35, 0.15); }
+.an-badge.lv-hard { color: #c62828; border-color: #c62828; background: rgba(198, 40, 40, 0.12); }
+.an-badge.lv-unknown { color: var(--muted); }
+.pg-up { color: #2e7d32; font-weight: 600; }
+.pg-down { color: #c62828; font-weight: 600; }
+.pg-flat { color: var(--muted); }
+.pg-chg { font-size: 13px; white-space: nowrap; }
+.pg-test { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+.pg-test:last-child { border-bottom: 0; }
+.pg-test-n { font-weight: 700; min-width: 28px; color: var(--muted); }
+.pg-test-main { flex: 1; min-width: 0; }
+.pg-test-name { font-weight: 600; word-break: break-word; }
+.pg-test-score { font-weight: 700; white-space: nowrap; min-width: 48px; text-align: right; }
