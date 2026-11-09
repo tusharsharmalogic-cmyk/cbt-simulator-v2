@@ -13,3 +13,4 @@ data/AI_PROMPT_GENERATE.md
 data/tests/*.json
 
 data/test_templates.json
+githelper.py
