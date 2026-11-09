@@ -1259,3 +1259,7 @@ mjx-container[display="true"] {
 .pg-test-main { flex: 1; min-width: 0; }
 .pg-test-name { font-weight: 600; word-break: break-word; }
 .pg-test-score { font-weight: 700; white-space: nowrap; min-width: 48px; text-align: right; }
+
+/* Copy analysis */
+.copy-row { margin-top: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.copy-fallback { width: 100%; min-height: 160px; box-sizing: border-box; padding: 8px; font: 12px/1.4 ui-monospace, monospace; background: var(--bg); color: inherit; border: 1px solid var(--border); border-radius: 8px; }

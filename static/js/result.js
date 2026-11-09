@@ -82,6 +82,7 @@ const resultScreen = (() => {
     } else if (a.submitted_at) {
       top.append(el('div', 'muted center small-gap', formatDate(a.submitted_at)));
     }
+    top.append(copyButtonRow(a, r));
     return top;
   }
 
@@ -1009,6 +1010,175 @@ const resultScreen = (() => {
     row.append(statBar(st));
     row.append(el('div', 'muted small', statLine(st)));
     if (opts && opts.extra) row.append(el('div', 'muted small', opts.extra));
+    return row;
+  }
+
+  // ---------- Copy the full analysis as plain text ----------
+  // The text is built from the same Analysis sections the screen shows (rendered
+  // fresh with every subject and no buttons), so the copy never drifts from the UI.
+  const REPORT_SKIP_CLS = ['an-chips', 'an-sort', 'fa-go', 'stat-bar', 'time-bar', 'practice-wrap'];
+  const REPORT_JOIN_CLS = ['an-top', 'row-head'];
+
+  function rpTag(n) { return String((n && (n.tagName || n.tag)) || '').toLowerCase(); }
+  function rpSquash(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
+  function rpHas(n, c) { return !!(n && n.classList && n.classList.contains(c)); }
+  function rpKids(n) { return Array.from((n && n.childNodes) || []).filter(c => c.nodeType === 1); }
+  function rpBlank(out) { if (out.length && out[out.length - 1] !== '') out.push(''); }
+
+  function rpSkip(n) {
+    if (!n || n.nodeType !== 1) return false;
+    const t = rpTag(n);
+    return t === 'button' || t === 'svg' || REPORT_SKIP_CLS.some(c => rpHas(n, c));
+  }
+
+  // All visible text under a node as one line.
+  function rpFlat(n) {
+    if (!n) return '';
+    if (n.nodeType === 3) return rpSquash(n.textContent);
+    if (rpSkip(n)) return '';
+    if (!n.childNodes || !n.childNodes.length) return rpSquash(n.textContent);
+    return rpSquash(Array.from(n.childNodes).map(rpFlat).filter(Boolean).join(' '));
+  }
+
+  function rpWalk(n, out, indent) {
+    if (!n || n.nodeType !== 1 || rpSkip(n)) return;
+    const t = rpTag(n);
+    const pad = '  '.repeat(indent);
+    const kids = rpKids(n);
+
+    if (t === 'details') {
+      const sum = kids.find(c => rpTag(c) === 'summary');
+      rpBlank(out);
+      out.push('## ' + rpFlat(sum));
+      kids.forEach(c => { if (c !== sum) rpWalk(c, out, indent); });
+      rpBlank(out);
+      return;
+    }
+    if (t === 'h2' || t === 'h3') {
+      const s = rpFlat(n);
+      if (s) out.push(pad + '### ' + s);
+      return;
+    }
+    if (rpHas(n, 'mb-row')) {
+      const lk = kids[0] ? rpKids(kids[0]) : [];
+      const label = rpFlat(lk[0]);
+      const sub = rpFlat(lk[1]);
+      const val = rpFlat(kids[1]);
+      out.push(pad + label + (val ? ': ' + val : '') + (sub ? ' (' + sub + ')' : ''));
+      return;
+    }
+    if (rpHas(n, 'fa-item')) {
+      const badge = kids.find(k => rpHas(k, 'an-badge'));
+      const rest = kids.filter(k => k !== badge).map(rpFlat).filter(Boolean).join(' ');
+      out.push(pad + (badge ? '[' + rpFlat(badge) + '] ' : '') + rest);
+      return;
+    }
+    if (REPORT_JOIN_CLS.some(c => rpHas(n, c))) {
+      const s = kids.map(rpFlat).filter(Boolean).join(' — ');
+      if (s) out.push(pad + s);
+      return;
+    }
+    if (!kids.length) {
+      const s = rpFlat(n);
+      if (s && s !== 'Sort by') out.push(pad + s);
+      return;
+    }
+    const ind = rpHas(n, 'an-topics') ? indent + 1 : indent;
+    kids.forEach(c => rpWalk(c, out, ind));
+    if (rpHas(n, 'card')) rpBlank(out);
+  }
+
+  function buildReport(a, r) {
+    const out = [];
+    const tt = r.total || {};
+    const pct = tt.max > 0 ? ` (${Math.round((tt.score / tt.max) * 1000) / 10}%)` : '';
+    out.push('CBT TEST ANALYSIS');
+    const head = [a.test_name, a.template && a.template.name].filter(Boolean).join(' | ');
+    if (head) out.push(head);
+    if (a.submitted_at) out.push('Date: ' + formatDate(a.submitted_at));
+    if (a.submit_reason === 'time_up') out.push('Submitted automatically: time up');
+    out.push(`Score: ${tt.score} / ${tt.max}${pct}`);
+    const acc = typeof tt.accuracy === 'number' ? ` • Accuracy ${Math.round(tt.accuracy * 100)}%` : '';
+    out.push(`Correct ${tt.correct} • Wrong ${tt.wrong} • Blank ${tt.blank}${acc}`);
+    out.push('', '## Subject wise');
+    (r.subjects || []).forEach(s => {
+      out.push(`${s.name}: Score ${s.score} / ${s.max} • Correct ${s.correct} • Wrong ${s.wrong} • ` +
+        `Blank ${s.blank} • Accuracy ${Math.round((s.accuracy || 0) * 100)}% • Time ${formatDuration(s.time_spent)}`);
+    });
+    const body = [];
+    rpWalk(renderAnalysis(a, r, {}), body, 0);
+    while (body.length && body[0] === '') body.shift();
+    out.push('', ...body);
+    return out.join('\n')
+      .replace(/ Tap a chapter to see its topics\./g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim() + '\n';
+  }
+
+  async function copyToClipboard(text) {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) { /* fall back to the older way below */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '0';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      if (ta.setSelectionRange) ta.setSelectionRange(0, text.length);
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (e) { return false; }
+  }
+
+  function copyButtonRow(a, r) {
+    const row = el('div', 'copy-row');
+    const btn = el('button', 'btn ghost small', '📋 Copy analysis');
+    btn.type = 'button';
+    const msg = el('div', 'muted small', '');
+    msg.hidden = true;
+    let reset = null;
+    let fallback = null;
+    const say = (t) => { msg.textContent = t; msg.hidden = !t; };
+    btn.addEventListener('click', async () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      say('');
+      let text = '';
+      try { text = buildReport(a, r); } catch (e) { text = ''; }
+      if (!text) {
+        say('Could not build the analysis text.');
+        btn.disabled = false;
+        return;
+      }
+      const lines = text.split('\n').length;
+      const ok = await copyToClipboard(text);
+      btn.disabled = false;
+      if (ok) {
+        btn.textContent = '✓ Copied';
+        say(`Whole analysis copied (${lines} lines). Paste it anywhere.`);
+        if (reset) clearTimeout(reset);
+        reset = setTimeout(() => { btn.textContent = '📋 Copy analysis'; }, 2500);
+      } else {
+        say('The browser blocked copying. Select the text below and copy it manually.');
+        if (!fallback) {
+          fallback = el('textarea', 'copy-fallback');
+          fallback.readOnly = true;
+          row.append(fallback);
+        }
+        fallback.value = text;
+        if (fallback.focus) fallback.focus();
+        if (fallback.select) fallback.select();
+      }
+    });
+    row.append(btn, msg);
     return row;
   }
 
