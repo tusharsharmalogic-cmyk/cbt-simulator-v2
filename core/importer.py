@@ -10,10 +10,8 @@ Rules per user:
 - Dedupe: same q + same options tuple -> only first kept.
 - File format: only .json accepted (enforced by frontend, defence here too).
 """
-import hashlib
 import json
 import re
-import time
 
 import config
 from core.storage import write_json_atomic

@@ -46,9 +46,16 @@ Open http://127.0.0.1:8080 on phone browser. Sirf `flask` chahiye (`pip install 
 
 **Result**
 - Total + subject-wise score, max, correct/wrong/blank, accuracy, time spent.
+- **📋 Copy analysis** button: poora Analysis section (focus areas, marks, chapters, question types, time, review, difficulty) plain text me clipboard me copy hota hai — WhatsApp/notes me paste karne layak. Clipboard block ho to auto textarea fallback.
 - Retry: attempt ke snapshot se naya test — **full** ya sirf **wrong + blank** questions (time proportionally scale hota hai). Purana result safe rehta hai, koi test file delete nahi hoti.
 - All/Correct/Wrong/Blank filter, expandable per-question review with solution.
 - Time-up aur all-locked auto-submit reason dikhte hain.
+
+**Progress (trends)**
+- Saare completed (non-retry) tests ka chronological view, paper level (Easy / Medium / Hard / Unknown) chips ke saath. Level questions ke Easy/Medium/Hard tags ke average se banta hai.
+- **Latest vs last 10 tests**: latest test ko pichhle 10 tests ke average se compare karta hai — Score %, Accuracy %, Attempt rate % aur Avg time/question, overall + Easy/Medium/Hard breakdown ke saath (time kam = green, baaki metrics zyada = green).
+- **Compare date ranges**: do date windows (default: last 7 days vs previous 7 days) chun kar same metrics compare — pickers live update karte hain, koi range khaali ho to friendly message.
+- Line charts: Score trend, Accuracy + speed, Difficulty-wise accuracy, Subject-wise score, Chapter-wise change (improved / needs attention), aur Tests compared list. Point tap karne par woh test khulta hai.
 
 **Settings**
 - Theme: system / light / dark (server pe save, reload ke baad bhi).
@@ -68,11 +75,13 @@ Open http://127.0.0.1:8080 on phone browser. Sirf `flask` chahiye (`pip install 
       attempt_store.py      # attempt create/save/finalize, client view (answers stripped)
       timer.py              # total/subject windows + per-question/subject locks (pure)
       scoring.py            # subject-wise scoring + per-question rows (pure)
+      progress.py           # completed (non-retry) attempts ka summary + paper level
       routes_tests.py       # /api/tests ...
       routes_templates.py   # /api/templates ...
       routes_testtpl.py     # /api/test-template ... (test ke saath saved template)
       routes_settings.py    # /api/settings ...
       routes_attempt.py     # /api/attempts ... (answer/mark/visit/submit, 409 handling)
+      routes_progress.py    # /api/progress ... (read-only completed attempts summary)
       routes_prompt.py      # /api/prompt/<key> (view/edit/reset)
 
     data/
@@ -134,24 +143,29 @@ Rules: `q` non-empty, 2–6 string options, `answer` ek capital letter options k
 | POST | `/api/attempts/<id>/visit` | `{subject, index, spent, from_subject?, from_index?}` — `spent` pichhle question ka, naya `subject/index` visit hota hai (0–600 s clamp) |
 | POST | `/api/attempts/<id>/submit` | optional `{subject, index, spent}` flush + finalize + scoring |
 | POST | `/api/attempts/<id>/retry` | `{mode: "full"\|"wrong"}` — submitted attempt ke snapshot se naya attempt (200 pe naya attempt view) |
+| GET | `/api/progress` | `{attempts: [...], excluded_retries, level_rule}` — completed (non-retry) attempts ka chronological summary: total (score/max/pct/accuracy/avg_time), difficulty-wise stats, subject-wise stats, chapter rows, paper level |
 | GET/PUT/DELETE | `/api/prompt` / `/api/prompt/<key>` | `photos` (default) ya `generate` |
 
 Mutation errors: `409` submitted / time_up / subject_locked / question_locked (locked response me `next` aur fresh `view` bhi hota hai), `422` validation.
 
 ## Recent changes (changelog)
 
+- **Progress: naye compare cards** — purana "Latest vs previous" hata kar do naye cards: (1) **Latest vs last 10 tests** (pichhle 10 tests ka average, overall + Easy/Medium/Hard breakdown, Score/Accuracy/Attempt rate/Avg time per question + Share of test), (2) **Compare date ranges** (do date windows, default last 7 vs previous 7, live date pickers). Delta colour-coded (time kam = green, baaki metrics zyada = green). Level chips dono cards pe apply hote hain. `progress.js` me shared `aggregate()` + `cmpTriple()` helpers.
+- **Result: 📋 Copy analysis** button — poora Analysis section plain text me clipboard me (navigator.clipboard + textarea fallback).
+- **Mobile/PWA meta** — favicon (inline SVG "C"), theme-color (light/dark), apple-touch-icon, apple-mobile-web-app-* tags.
+- **Cleanup** — `core/importer.py` se unused `hashlib`/`time` imports hata diye. `.gitignore` me `githelper.py`.
 - **Test ke saath template**: nayi file `core/routes_testtpl.py`, data `data/test_templates.json` (`{test_id: template_id}`, schedule se alag). Test delete/merge ya template delete par entry auto-clean. Schedule dialog me template tabhi puchta hai jab test pe saved na ho; wahan chuna template test pe bhi save hota hai; template badalne par us test ka schedule bhi naye template pe aata hai.
 - **Available Tests UI**: 📄 icon hata, left me chhota gol ▶ Start (sirf template-saved tests pe), 📋 Template / Change Template button, card me template details.
 - **Start New Test**: "Choose Test" list me lambe naam wali rows ka text overlap hota tha (rows shrink ho rahi thi) — ab rows apni poori height rakhti hain aur list scroll karti hai.
 - **Running test**: timer ke daayein chal raha subject + tap par subject dropdown (pehle question pe jump); palette se subject chips aur "Band karo" hata; Submit palette ke andar sabse neeche.
 - `setup.js` ka Test Details card alag function `setup.detailsCard()` hai (Start New Test aur Available Tests dono use karte hain).
-- Tests: 132 (8 naye `tests/test_test_template.py` me). Cache-bust abhi `?v=59`.
+- Tests: 158. Cache-bust abhi `?v=66`.
 
 ## Tests
 
     python -m unittest discover -s tests
 
-132 tests (1.1 s) — importer (incl. AI output repair), validator, test analysis + paste route, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), time attribution, retry, lock flow, skip-empty. Tests temp data dir use karte hain, real `data/` touch nahi hota.
+158 tests — importer (incl. AI output repair), validator, test analysis + paste route, templates + settings routes, scoring, attempt lifecycle (strip/auto-submit/timer/subject mode), time attribution, retry, lock flow, skip-empty, progress summary (levels, difficulty split, ordering). Tests temp data dir use karte hain, real `data/` touch nahi hota.
 
 ## Hard rules
 
