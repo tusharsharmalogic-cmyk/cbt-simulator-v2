@@ -152,20 +152,6 @@ const progressScreen = (() => {
     return { text: `${up ? '+' : '−'}${body} ${up ? '↑' : '↓'}`, cls: up === upGood ? 'pg-up' : 'pg-down' };
   }
 
-  function cmpRow(label, cur, prev, kind, upGood) {
-    const fmt = v => (!isNum(v) ? '—' : kind === 'time' ? fmtTime(v) : r1(v) + '%');
-    const d = delta(cur, prev, kind, upGood);
-    const row = el('div', 'mb-row');
-    const left = el('div', 'mb-left');
-    left.append(el('div', 'mb-label', label));
-    left.append(el('div', 'muted small', `Previous: ${fmt(prev)}`));
-    const right = el('div', 'mb-val');
-    right.append(el('div', '', fmt(cur)));
-    if (d.text) right.append(el('div', 'small ' + d.cls, d.text));
-    row.append(left, right);
-    return row;
-  }
-
   function enough(body, items, level) {
     if (items.length >= 2) return true;
     body.append(emptyCard('Need at least 2 completed tests' + (level === 'all' ? '' : ' at this level') + ' to show a trend.'));
@@ -174,26 +160,198 @@ const progressScreen = (() => {
 
   function open(a) { location.hash = '#/attempt/' + a.id; }
 
+  // ---------- aggregate & date helpers ----------
+  function avgVals(arr) {
+    const nums = arr.filter(isNum);
+    return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+  }
+
+  function attemptPct(st) {
+    if (!st || !st.total) return null;
+    const att = (st.correct || 0) + (st.wrong || 0);
+    return att ? (att * 100) / st.total : null;
+  }
+
+  function diffAccuracy(st) {
+    if (!st || !st.total) return null;
+    const att = (st.correct || 0) + (st.wrong || 0);
+    return att ? (st.correct * 100) / att : null;
+  }
+
+  function diffAvgTime(st) {
+    if (!st || !st.total) return null;
+    return st.time / st.total;
+  }
+
+  function diffShare(a, d) {
+    const t = tot(a).total;
+    const st = a.difficulty && a.difficulty[d];
+    return (t && st && st.total) ? (st.total * 100) / t : null;
+  }
+
+  // Average across a list of attempts; null metric if none had data.
+  function aggregate(items) {
+    if (!items.length) return null;
+    const pick = fn => avgVals(items.map(fn));
+    const diff = {};
+    DIFFS.forEach(d => {
+      diff[d] = {
+        accuracy: pick(a => diffAccuracy(a.difficulty && a.difficulty[d])),
+        attempt: pick(a => attemptPct(a.difficulty && a.difficulty[d])),
+        avgTime: pick(a => diffAvgTime(a.difficulty && a.difficulty[d])),
+        share: pick(a => diffShare(a, d)),
+      };
+    });
+    return {
+      n: items.length,
+      score: pick(a => tot(a).pct),
+      accuracy: pick(a => tot(a).accuracy),
+      attempt: pick(a => attemptPct(tot(a))),
+      avgTime: pick(a => tot(a).avg_time),
+      diff,
+    };
+  }
+
+  function cmpTriple(label, cur, base, kind, upGood, baseLbl) {
+    const fmt = v => !isNum(v) ? '—' : (kind === 'time' ? fmtTime(v) : r1(v) + '%');
+    const d = delta(cur, base, kind, upGood);
+    const row = el('div', 'mb-row');
+    const left = el('div', 'mb-left');
+    left.append(el('div', 'mb-label', label));
+    const right = el('div', 'mb-val');
+    const tri = el('div', 'pg-triple');
+    tri.append(el('span', 'pg-cur', fmt(cur)));
+    tri.append(el('span', 'muted small', (baseLbl || 'vs') + ' ' + fmt(base)));
+    if (d.text) tri.append(el('span', 'small ' + d.cls, d.text));
+    right.append(tri);
+    row.append(left, right);
+    return row;
+  }
+
+  function toDateStr(sec) {
+    const d = new Date(sec * 1000);
+    const p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+
+  function inRange(a, fromStr, toStr) {
+    if (!isNum(a.submitted_at)) return false;
+    const ts = a.submitted_at * 1000;
+    const from = fromStr ? new Date(fromStr + 'T00:00:00').getTime() : -Infinity;
+    const to = toStr ? new Date(toStr + 'T23:59:59.999').getTime() : Infinity;
+    return ts >= from && ts <= to;
+  }
+
+  function datePicker(label, value, onChange) {
+    const wrap = el('label', 'pg-date-wrap');
+    wrap.append(el('span', 'small muted', label));
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.value = value || '';
+    input.addEventListener('change', () => onChange(input.value));
+    wrap.append(input);
+    return wrap;
+  }
+
   // ---------- sections ----------
-  function buildCompare(body, items, level) {
-    if (!enough(body, items, level)) return;
-    const cur = items[items.length - 1];
-    const prev = items[items.length - 2];
-    const card = el('div', 'card');
-    card.append(el('h3', '', `T${cur._n} vs T${prev._n}`));
-    const l1 = el('div', 'muted small');
-    l1.textContent = `${nameOf(cur)} (${LEVEL_LABEL[levelOf(cur)]}) compared with ${nameOf(prev)} (${LEVEL_LABEL[levelOf(prev)]})`;
-    card.append(l1);
-    card.append(cmpRow('Score', tot(cur).pct, tot(prev).pct, 'pct', true));
-    card.append(cmpRow('Accuracy', tot(cur).accuracy, tot(prev).accuracy, 'pct', true));
-    card.append(cmpRow('Average time per question', tot(cur).avg_time, tot(prev).avg_time, 'time', false));
-    body.append(card);
-    const a = levelOf(cur), b = levelOf(prev);
-    if (a !== b && a !== 'unknown' && b !== 'unknown') {
-      body.append(el('div', 'muted small',
-        'These two papers have different levels, so a drop in score may not mean you got worse. ' +
-        'Use the level chips above to compare papers of the same level.'));
+  function buildCompareLatest(body, items, level) {
+    if (items.length < 2) {
+      body.append(emptyCard('Need at least 2 completed tests' + (level === 'all' ? '' : ' at this level') + ' to compare.'));
+      return;
     }
+    const cur = items[items.length - 1];
+    const prevItems = items.slice(0, -1).slice(-10);
+    const base = aggregate(prevItems);
+    const curAgg = aggregate([cur]);
+    const card = el('div', 'card');
+    card.append(el('h3', '', 'Latest test vs last ' + prevItems.length + ' tests'));
+    const meta = el('div', 'muted small');
+    const first = prevItems[0], last = prevItems[prevItems.length - 1];
+    meta.textContent = 'Latest: T' + cur._n + ' · ' + nameOf(cur) + ' · ' + LEVEL_LABEL[levelOf(cur)] +
+      ' — Baseline: avg of T' + first._n + '–T' + last._n;
+    card.append(meta);
+
+    card.append(el('div', 'pg-sub', 'Overall'));
+    card.append(cmpTriple('Score %', curAgg.score, base.score, 'pct', true, 'avg' + prevItems.length));
+    card.append(cmpTriple('Accuracy %', curAgg.accuracy, base.accuracy, 'pct', true, 'avg' + prevItems.length));
+    card.append(cmpTriple('Attempt rate %', curAgg.attempt, base.attempt, 'pct', true, 'avg' + prevItems.length));
+    card.append(cmpTriple('Avg time / question', curAgg.avgTime, base.avgTime, 'time', false, 'avg' + prevItems.length));
+
+    DIFFS.forEach(d => {
+      if (d === 'unknown') return;
+      const cd = curAgg.diff[d], bd = base.diff[d];
+      if (!isNum(cd.accuracy) && !isNum(bd.accuracy)) return;
+      card.append(el('div', 'pg-sub', LEVEL_LABEL[d] + ' questions'));
+      card.append(cmpTriple('Accuracy %', cd.accuracy, bd.accuracy, 'pct', true, 'avg' + prevItems.length));
+      card.append(cmpTriple('Attempt rate %', cd.attempt, bd.attempt, 'pct', true, 'avg' + prevItems.length));
+      card.append(cmpTriple('Avg time / question', cd.avgTime, bd.avgTime, 'time', false, 'avg' + prevItems.length));
+      card.append(cmpTriple('Share of test', cd.share, bd.share, 'pct', true, 'avg' + prevItems.length));
+    });
+
+    body.append(card);
+  }
+
+  function buildDateCompare(body, items, level, view) {
+    const now = Date.now();
+    const dd = 86400000;
+    const defaults = {
+      aFrom: toDateStr((now - 6 * dd) / 1000),
+      aTo: toDateStr(now / 1000),
+      bFrom: toDateStr((now - 13 * dd) / 1000),
+      bTo: toDateStr((now - 7 * dd) / 1000),
+    };
+    if (!view.dateRange) view.dateRange = Object.assign({}, defaults);
+    const dr = view.dateRange;
+
+    const render = () => {
+      body.replaceChildren();
+      const card = el('div', 'card');
+      card.append(el('h3', '', 'Compare two date ranges'));
+      card.append(el('div', 'muted small',
+        'Default: last 7 days (A) vs previous 7 days (B). Change any date to compare different windows.'));
+      const pickers = el('div', 'pg-pickers');
+      pickers.append(datePicker('A from', dr.aFrom, v => { dr.aFrom = v; render(); }));
+      pickers.append(datePicker('A to', dr.aTo, v => { dr.aTo = v; render(); }));
+      pickers.append(datePicker('B from', dr.bFrom, v => { dr.bFrom = v; render(); }));
+      pickers.append(datePicker('B to', dr.bTo, v => { dr.bTo = v; render(); }));
+      card.append(pickers);
+
+      const itemsA = items.filter(a => inRange(a, dr.aFrom, dr.aTo));
+      const itemsB = items.filter(a => inRange(a, dr.bFrom, dr.bTo));
+      if (!itemsA.length || !itemsB.length) {
+        const missing = !itemsA.length && !itemsB.length ? 'either range' : (!itemsA.length ? 'range A' : 'range B');
+        card.append(el('p', 'muted center', 'No tests in ' + missing + '. Try a wider date range.'));
+        body.append(card);
+        return;
+      }
+
+      const aggA = aggregate(itemsA);
+      const aggB = aggregate(itemsB);
+      const meta = el('div', 'muted small');
+      meta.textContent = 'A: ' + itemsA.length + ' test' + (itemsA.length === 1 ? '' : 's') +
+        ' · B: ' + itemsB.length + ' test' + (itemsB.length === 1 ? '' : 's');
+      card.append(meta);
+
+      card.append(el('div', 'pg-sub', 'Overall (A vs B)'));
+      card.append(cmpTriple('Score %', aggA.score, aggB.score, 'pct', true, 'B'));
+      card.append(cmpTriple('Accuracy %', aggA.accuracy, aggB.accuracy, 'pct', true, 'B'));
+      card.append(cmpTriple('Attempt rate %', aggA.attempt, aggB.attempt, 'pct', true, 'B'));
+      card.append(cmpTriple('Avg time / question', aggA.avgTime, aggB.avgTime, 'time', false, 'B'));
+
+      DIFFS.forEach(d => {
+        if (d === 'unknown') return;
+        const ad = aggA.diff[d], bd = aggB.diff[d];
+        if (!isNum(ad.accuracy) && !isNum(bd.accuracy)) return;
+        card.append(el('div', 'pg-sub', LEVEL_LABEL[d] + ' questions (A vs B)'));
+        card.append(cmpTriple('Accuracy %', ad.accuracy, bd.accuracy, 'pct', true, 'B'));
+        card.append(cmpTriple('Attempt rate %', ad.attempt, bd.attempt, 'pct', true, 'B'));
+        card.append(cmpTriple('Avg time / question', ad.avgTime, bd.avgTime, 'time', false, 'B'));
+        card.append(cmpTriple('Share of test', ad.share, bd.share, 'pct', true, 'B'));
+      });
+
+      body.append(card);
+    };
+    render();
   }
 
   function buildScore(body, items, level) {
@@ -366,7 +524,8 @@ const progressScreen = (() => {
       const items = view.level === 'all' ? all : all.filter(a => levelOf(a) === view.level);
       const lv = view.level;
       content.replaceChildren(
-        section('Latest vs previous', 'cmp', view.open, b => buildCompare(b, items, lv)),
+        section('Latest vs last 10 tests', 'cmp', view.open, b => buildCompareLatest(b, items, lv)),
+        section('Compare date ranges', 'dates', view.open, b => buildDateCompare(b, items, lv, view)),
         section('Score trend', 'score', view.open, b => buildScore(b, items, lv)),
         section('Accuracy and speed', 'acc', view.open, b => buildAccuracy(b, items, lv)),
         section('Difficulty-wise accuracy', 'diff', view.open, b => buildDifficulty(b, items, lv)),

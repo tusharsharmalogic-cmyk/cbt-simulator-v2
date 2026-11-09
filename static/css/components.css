@@ -1263,3 +1263,11 @@ mjx-container[display="true"] {
 /* Copy analysis */
 .copy-row { margin-top: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .copy-fallback { width: 100%; min-height: 160px; box-sizing: border-box; padding: 8px; font: 12px/1.4 ui-monospace, monospace; background: var(--bg); color: inherit; border: 1px solid var(--border); border-radius: 8px; }
+
+/* Progress: compare cards */
+.pg-sub { margin: 14px 0 6px; font-weight: 600; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.pg-triple { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; justify-content: flex-end; }
+.pg-triple .pg-cur { font-weight: 700; }
+.pg-pickers { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 10px 0; }
+.pg-date-wrap { display: flex; flex-direction: column; gap: 3px; min-width: 120px; }
+.pg-date-wrap input[type="date"] { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: inherit; font: inherit; }
